@@ -2,12 +2,40 @@
 #define HMLL_FETCHER_IOURING_H
 
 // The queue-depth matchs the number of slot (bits) allocable through iobusy var
+#ifndef HMLL_URING_QUEUE_DEPTH
 #define HMLL_URING_QUEUE_DEPTH 128U
+#endif
+
+#ifndef HMLL_URING_BUFFER_SIZE
 #define HMLL_URING_BUFFER_SIZE (64U * 1024)
+#endif
+
+#ifndef HMLL_URING_CQE_BATCH_SIZE
+#define HMLL_URING_CQE_BATCH_SIZE 32
+#endif
+
+#ifndef MIN
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#endif
+#ifndef MAX
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#endif
 
 #include <liburing.h>
 #include "hmll/fetcher.h"
 #include "hmll/types.h"
+
+struct hmll_iouring_iobusy
+{
+    long long msb;
+    long long lsb;
+};
+
+struct hmll_iouring_cca
+{
+    unsigned throughput;
+    unsigned window;
+};
 
 #if defined(__HMLL_CUDA_ENABLED__)
 #include <driver_types.h>
@@ -38,18 +66,44 @@ static inline void hmll_iouring_cuda_stream_set_memcpy(enum hmll_iouring_cuda_st
 
 #endif
 
-struct hmll_iouring_iobusy
+
+static inline size_t hmll_iouring_throughput(const size_t nbytes, const size_t elapsed)
 {
-    long long msb;
-    long long lsb;
-};
+    return nbytes * 1000000L / elapsed;
+}
+
+static inline void hmll_iouring_cca_init(struct hmll_iouring_cca *cca)
+{
+    cca->throughput = 0;
+    cca->window = 1;
+}
+
+static inline unsigned hmll_iouring_cca_update(
+    struct hmll_iouring_cca *cca, const size_t bytes, const struct timespec ts_start, const struct timespec ts_end)
+{
+    const unsigned current = cca->window;
+    const size_t elapsed = MAX((ts_end.tv_sec - ts_start.tv_sec) * 1000000000L + (ts_end.tv_nsec - ts_start.tv_nsec), 1);
+
+    const size_t throughput = hmll_iouring_throughput(bytes, elapsed);
+    const size_t smoothed = ((throughput * 3) + cca->throughput) >> 2;
+
+    if (cca->throughput < throughput) {
+        cca->window = MIN(cca->window + 1, HMLL_URING_CQE_BATCH_SIZE);
+        cca->throughput = smoothed;
+    } else {
+        cca->window = MAX(cca->window - 1, 1);
+        cca->throughput = smoothed;
+    }
+    return current;
+}
 
 struct hmll_iouring {
     struct io_uring ioring;
     struct iovec *iovecs;
     struct hmll_iouring_iobusy iobusy;
+    struct hmll_iouring_cca iocca;  // congestion control
 
-    // Store optional device data
+    // store optional device data
     void *device_ctx;
 };
 
