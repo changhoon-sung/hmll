@@ -4,9 +4,8 @@ project(hmll LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g ")
-set(CMAKE_C_FLAGS "-Wno-unused-function")
+set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(FetchContent)
@@ -16,6 +15,7 @@ include(FetchContent)
 ###########################################################
 option(HMLL_ENABLE_CUDA "Flag to build with CUDA capabilities" OFF)
 option(HMLL_ENABLE_PYTHON "Flag to build Python binding" OFF)
+option(HMLL_ENABLE_SAFETENSORS "Flag to add support for reading safetensors natively" OFF)
 option(HMLL_BUILD_STATIC "Flag indicating if cmake should generate a static build for libhmll" OFF)
 option(HMLL_BUILD_EXAMPLES "Flag indicating if cmake should build examples" OFF)
 option(HMLL_BUILD_TESTS "Flag indicating if cmake should build unit-tests" OFF)
@@ -31,14 +31,6 @@ endif()
 # Dependencies
 ###########################################################
 set(HMLL_LIBRARIES "")
-fetchcontent_declare(
-        yyjson
-        GIT_REPOSITORY https://github.com/ibireme/yyjson.git
-        GIT_TAG        master
-)
-fetchcontent_makeavailable(yyjson)
-list(APPEND HMLL_LIBRARIES yyjson)
-
 if(${HMLL_ENABLE_CUDA})
     find_package(CUDAToolkit REQUIRED)
     list(APPEND HMLL_LIBRARIES CUDA::cudart CUDA::cuda_driver)
@@ -63,28 +55,41 @@ endif()
 # Definition of libhmll
 ###########################################################
 set(LIBHMLL_HEADERS
-        include/hmll/fetcher.h
         include/hmll/hmll.h
-        include/hmll/safetensors.h
+        include/hmll/loader.h
+        include/hmll/memory.h
         include/hmll/types.h
-        include/hmll/unix/fetcher.h
-        include/hmll/unix/iouring.h
+        include/hmll/unix/loader.h
+        include/hmll/unix/backend/iouring.h
 )
 set(LIBHMLL_SOURCES
         lib/context.c
         lib/errors.c
-        lib/fetcher.c
+        lib/loader.c
         lib/memory.c
-        lib/tensors.c
-        lib/safetensors.c
-        lib/sources.c
-        lib/unix/mmap.c
-        lib/unix/iouring.c
+#        lib/tensors.c
+        lib/unix/loader.c
+        lib/unix/file.c
+        lib/unix/backend/iouring.c
 )
+
+if(${HMLL_ENABLE_SAFETENSORS})
+    add_compile_definitions(libhmll PUBLIC __HMLL_SAFETENSORS_ENABLED__=1)
+    add_compile_definitions(libhmll PUBLIC __HMLL_TENSORS_ENABLED__=1)
+    fetchcontent_declare(
+            yyjson
+            GIT_REPOSITORY https://github.com/ibireme/yyjson.git
+            GIT_TAG        master
+    )
+    fetchcontent_makeavailable(yyjson)
+
+    list(APPEND LIBHMLL_HEADERS include/hmll/safetensors.h)
+    list(APPEND LIBHMLL_SOURCES lib/safetensors.c)
+    list(APPEND HMLL_LIBRARIES yyjson)
+endif()
 
 if(${HMLL_ENABLE_CUDA})
     list(APPEND LIBHMLL_HEADERS include/hmll/cuda.h)
-    list(APPEND LIBHMLL_SOURCES lib/cuda.c)
 endif()
 
 add_library(libhmll ${LIBHMLL_HEADERS} ${LIBHMLL_SOURCES})
@@ -92,7 +97,7 @@ target_include_directories(libhmll PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
-target_compile_options(libhmll PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Werror -Wextra -Wpedantic>)
+target_compile_options(libhmll PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Werror -Wextra -Wpedantic -Wno-unused-function>)
 target_link_libraries(libhmll ${HMLL_LIBRARIES})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -103,13 +108,18 @@ endif()
 # Examples
 ###########################################################
 if(${HMLL_BUILD_EXAMPLES})
-    add_executable(hmll_safetensors_ex examples/safetensors.c)
-
+    set(HMLL_EXAMPLES_EXTRA_LIBS "")
     if(${HMLL_ENABLE_CUDA})
-        target_link_libraries(hmll_safetensors_ex PRIVATE libhmll CUDA::cudart)
-    else()
-        target_link_libraries(hmll_safetensors_ex PRIVATE libhmll)
+        list(APPEND HMLL_EXAMPLES_EXTRA_LIBS CUDA::cudart)
     endif()
+
+    if(${HMLL_ENABLE_SAFETENSORS})
+        add_executable(hmll_safetensors_ex examples/safetensors.c)
+        target_link_libraries(hmll_safetensors_ex PRIVATE libhmll ${HMLL_EXAMPLES_EXTRA_LIBS})
+    endif()
+
+    add_executable(hmll_examples_universal examples/universal.c)
+    target_link_libraries(hmll_examples_universal PRIVATE libhmll ${HMLL_EXAMPLES_EXTRA_LIBS})
 endif()
 
 ###########################################################
@@ -123,7 +133,7 @@ if(${HMLL_BUILD_TESTS})
     fetchcontent_declare(
             Catch2
             GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-            GIT_TAG        v3.11.0
+            GIT_TAG        v3.12.0
     )
     fetchcontent_makeavailable(Catch2)
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
@@ -132,13 +142,18 @@ if(${HMLL_BUILD_TESTS})
     include(Catch)
 
     set(HMLL_TESTS_SRC
-            tests/tests_hmll_status.cpp
-            tests/tests_hmll_dtype.cpp
-            tests/tests_hmll_tensor_specs.cpp
+            tests/tests_hmll_errors.cpp
             tests/tests_hmll_memory.cpp)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND ${HMLL_ENABLE_IO_URING})
         list(APPEND HMLL_TESTS_SRC tests/tests_hmll_io_uring.cpp)
+    endif()
+
+    if(${HMLL_ENABLE_SAFETENSORS})
+        list(APPEND HMLL_TESTS_SRC
+            tests/tests_hmll_tensor_specs.cpp
+            tests/tests_hmll_dtype.cpp
+        )
     endif()
 
     add_executable(libhmll_tests ${HMLL_TESTS_SRC})

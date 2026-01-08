@@ -1,0 +1,42 @@
+#ifndef PYHMLL_FETCHER_HPP
+#define PYHMLL_FETCHER_HPP
+
+#include <memory>
+#include <utility>
+#include <vector>
+#include <hmll/loader.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/unique_ptr.h>
+#include <nanobind/stl/string.h>
+#include <nanobind/stl/vector.h>
+
+#include "hmll/hmll.h"
+
+namespace nb = nanobind;
+
+class WeightLoader
+{
+    std::unique_ptr<hmll_t> ctx_;
+    std::vector<hmll_source_t> srcs_;
+
+public:
+    static std::unique_ptr<WeightLoader> from_paths(const std::vector<std::string>& paths, hmll_device_t device);
+
+    WeightLoader(WeightLoader&&) = default;
+    WeightLoader& operator=(WeightLoader&&) = default;
+    WeightLoader(const WeightLoader&) = delete;
+    WeightLoader& operator=(const WeightLoader&) = delete;
+    explicit WeightLoader(std::unique_ptr<hmll_t> ctx, std::vector<hmll_source_t>& srcs, hmll_device_t device);
+
+    [[nodiscard]]
+    hmll_device_t device() const;
+
+    [[nodiscard]]
+    hmll_fetcher_kind_t kind() const;
+
+    [[nodiscard]]
+    nb::ndarray<nb::ndim<1>, nb::c_contig> fetch(size_t start, size_t end, hmll_dtype_t dtype, int iofile) const;
+};
+
+#endif // PYHMLL_FETCHER_HPP
