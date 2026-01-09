@@ -38,25 +38,27 @@ struct hmll_range hmll_fetch(struct hmll *ctx, struct hmll_iobuf *dst, const str
         goto fail;
     }
 
-    const struct hmll_fetcher *fetcher = ctx->fetcher;
+    const struct hmll_loader *fetcher = ctx->fetcher;
     return fetcher->fetch_range_impl_(ctx, fetcher->backend_impl_, dst, range, iofile);
 
 fail:
     return (struct hmll_range){0};
 }
 
-// struct hmll_range hmll_fetch_tensor(struct hmll_context *ctx, struct hmll_fetcher fetcher, const char *name, const struct hmll_device_buffer dst)
-// {
-//     if (hmll_has_error(hmll_get_error(ctx)))
-//         return (struct hmll_range){0};
-//
-//     const struct hmll_tensor_lookup_result lookup = hmll_get_tensor_specs(ctx, name);
-//     if (lookup.found == HMLL_FALSE) {
-//         ctx->error = HMLL_ERR_TENSOR_NOT_FOUND;
-//         return (struct hmll_range){0};
-//     }
-//
-//     const struct hmll_tensor_specs specs = lookup.specs;
-//     const struct hmll_range range = (struct hmll_range){specs.start, specs.end};
-//     return hmll_fetch(ctx, fetcher, dst, range, lookup.file);
-// }
+#ifdef __HMLL_TENSORS_ENABLED__
+struct hmll_range hmll_fetch_tensor(struct hmll *ctx, const struct hmll_registry *registry, struct hmll_iobuf *dst, const char *name)
+{
+    if (hmll_check(ctx->error))
+        return (struct hmll_range){0};
+
+    const struct hmll_lookup_result lookup = hmll_lookup_tensor(ctx, registry, name);
+    if (lookup.specs == HMLL_FALSE) {
+        ctx->error = HMLL_ERR(HMLL_ERR_TENSOR_NOT_FOUND);
+        return (struct hmll_range){0};
+    }
+
+    const struct hmll_tensor_specs *specs = lookup.specs;
+    const struct hmll_range range = (struct hmll_range){specs->start, specs->end};
+    return hmll_fetch(ctx, dst, range, lookup.file);
+}
+#endif

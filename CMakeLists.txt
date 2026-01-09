@@ -74,6 +74,7 @@ set(LIBHMLL_SOURCES
 )
 
 if(${HMLL_ENABLE_SAFETENSORS})
+    message(STATUS "Enabling safetensors format support")
     add_compile_definitions(libhmll PUBLIC __HMLL_SAFETENSORS_ENABLED__=1)
     add_compile_definitions(libhmll PUBLIC __HMLL_TENSORS_ENABLED__=1)
     fetchcontent_declare(
@@ -83,8 +84,7 @@ if(${HMLL_ENABLE_SAFETENSORS})
     )
     fetchcontent_makeavailable(yyjson)
 
-    list(APPEND LIBHMLL_HEADERS include/hmll/safetensors.h)
-    list(APPEND LIBHMLL_SOURCES lib/safetensors.c)
+    list(APPEND LIBHMLL_SOURCES lib/safetensors.c lib/tensors.c)
     list(APPEND HMLL_LIBRARIES yyjson)
 endif()
 
@@ -143,7 +143,8 @@ if(${HMLL_BUILD_TESTS})
 
     set(HMLL_TESTS_SRC
             tests/tests_hmll_errors.cpp
-            tests/tests_hmll_memory.cpp)
+            tests/tests_hmll_memory.cpp
+            tests/tests_hmll_context.cpp)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND ${HMLL_ENABLE_IO_URING})
         list(APPEND HMLL_TESTS_SRC tests/tests_hmll_io_uring.cpp)
@@ -153,10 +154,12 @@ if(${HMLL_BUILD_TESTS})
         list(APPEND HMLL_TESTS_SRC
             tests/tests_hmll_tensor_specs.cpp
             tests/tests_hmll_dtype.cpp
+            tests/tests_hmll_safetensors.cpp
         )
     endif()
 
     add_executable(libhmll_tests ${HMLL_TESTS_SRC})
+    target_include_directories(libhmll_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/include)
     target_link_libraries(libhmll_tests PRIVATE Catch2::Catch2WithMain libhmll)
     catch_discover_tests(libhmll_tests)
 endif()
