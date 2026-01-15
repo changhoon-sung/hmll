@@ -34,13 +34,13 @@ int main(const int argc, const char** argv)
     if (hmll_success(ctx.error) && lookup.specs != NULL)
     {
         const hmll_range_t range = (struct hmll_range){ lookup.specs->start, lookup.specs->end };
-        hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+        const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
         if (hmll_success(ctx.error)) {
             // Start timing
             struct timespec start, end;
             clock_gettime(CLOCK_MONOTONIC, &start);
 
-            const hmll_range_t offsets = hmll_fetch(&ctx, &buffer, range, lookup.file);
+            const ssize_t res = hmll_fetch(&ctx, lookup.file, &buffer, range);
 
             // End timing and calculate elapsed time
             clock_gettime(CLOCK_MONOTONIC, &end);
@@ -60,9 +60,9 @@ int main(const int argc, const char** argv)
                 __bf16 *bf16_ptr;
                 if (ctx.fetcher->device == HMLL_DEVICE_CUDA) {
                     bf16_ptr = malloc(buffer.size);
-                    cudaMemcpy(bf16_ptr, buffer.ptr + offsets.start, hmll_numel(lookup.specs) * sizeof(__bf16), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(bf16_ptr, buffer.ptr, hmll_numel(lookup.specs) * sizeof(__bf16), cudaMemcpyDeviceToHost);
                 } else {
-                    bf16_ptr = buffer.ptr + offsets.start;
+                    bf16_ptr = buffer.ptr;
                 }
 
                 float sum = 0;

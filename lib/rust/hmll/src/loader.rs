@@ -16,8 +16,6 @@ pub enum LoaderKind {
 
 impl LoaderKind {
     /// Convert to the underlying C enum value.
-    ///
-    /// Hot path - inline always for FFI conversion.
     #[inline(always)]
     pub(crate) const fn to_raw(self) -> hmll_sys::hmll_loader_kind {
         match self {
@@ -152,27 +150,24 @@ impl<'a> WeightLoader<'a> {
     /// # let source = Source::open("model.safetensors")?;
     /// # let sources = [source];
     /// # let mut loader = WeightLoader::new(&sources, Device::Cpu, LoaderKind::Auto)?;
+    ///
     /// // Fetch first 1MB from the first file
-    /// let data = loader.fetch(0..1024*1024, 0)?;
+    /// let data = loader.fetch(0..1024 * 1024, 0)?;
     /// println!("Fetched {} bytes", data.len());
     /// # Ok(())
     /// # }
     /// ```
-    #[inline]
-    pub fn fetch<R: Into<Range>>(&mut self, range: R, file_index: usize) -> Result<Buffer> {
+    pub fn fetch<R: Into<Range>>(&mut self, range: R, file_index: i32) -> Result<Buffer> {
         let range = range.into();
 
-        // Fast path: bounds check
-        if file_index >= self.sources.len() {
+        if file_index >= self.sources.len() as i32 {
             return Err(Error::InvalidRange);
         }
 
-        // Fast path: empty range
         if range.is_empty() {
             return Ok(unsafe { Buffer::from_raw_parts(ptr::null_mut(), 0, self.device, false) });
         }
 
-        // Get buffer for the requested range
         let mut iobuf = unsafe {
             hmll_sys::hmll_get_buffer_for_range(
                 self.context.as_mut(),
@@ -181,23 +176,20 @@ impl<'a> WeightLoader<'a> {
             )
         };
 
-        // Check allocation success (less common error path)
         if iobuf.ptr.is_null() {
             return Err(Error::AllocationFailed);
         }
 
-        // Perform the actual fetch
-        let offsets = unsafe {
+        let res = unsafe {
             hmll_sys::hmll_fetch(
                 self.context.as_mut(),
+                file_index,
                 &mut iobuf,
                 range.to_raw(),
-                file_index,
             )
         };
 
-        // Check for errors (less common error path)
-        if self.context.error.code != hmll_sys::HMLL_ERR_SUCCESS {
+        if res < 0 {
             let err = self.context.error;
             self.context.error = hmll_sys::hmll_error {
                 code: hmll_sys::HMLL_ERR_SUCCESS,
@@ -206,36 +198,27 @@ impl<'a> WeightLoader<'a> {
             return Err(Error::from_hmll_error(err));
         }
 
-        // Success path: create buffer
         Ok(unsafe {
             Buffer::from_raw_parts(
-                (iobuf.ptr as *mut u8).add(offsets.start),
-                offsets.end - offsets.start,
+                iobuf.ptr as *mut u8,
+                iobuf.size,
                 self.device,
-                false, // hmll manages the memory
+                false,
             )
         })
     }
 
     /// Get the device this loader is configured for.
-    ///
-    /// Hot path - inline always for zero-cost field access.
     #[inline(always)]
-    pub const fn device(&self) -> Device {
-        self.device
-    }
+    pub const fn device(&self) -> Device { self.device }
 
     /// Get the number of source files.
-    ///
-    /// Hot path - inline always for zero-cost length access.
     #[inline(always)]
     pub fn num_sources(&self) -> usize {
         self.sources.len()
     }
 
     /// Get information about a specific source file.
-    ///
-    /// Hot path - inline for efficient bounds checking and struct creation.
     #[inline]
     pub fn source_info(&self, index: usize) -> Option<SourceInfo> {
         if index < self.sources.len() {

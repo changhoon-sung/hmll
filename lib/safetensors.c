@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 
 char *hmll_safetensors_path_create(const char *path, const char *file) {
-    if (path == NULL || file == NULL)
+    if (!path || !file)
         return NULL;
 
     // TODO: handle windows separators
@@ -19,7 +19,7 @@ char *hmll_safetensors_path_create(const char *path, const char *file) {
 
     const size_t file_len = strlen(file);
     char *new_path = malloc(dir_len + file_len + 1);
-    if (new_path == NULL)
+    if (!new_path)
         return NULL;
 
     if (dir_len > 0)
@@ -245,6 +245,7 @@ struct hmll_error hmll_safetensors_populate_registry(
     uint64_t hsize;
     memcpy(&hsize, content, sizeof(uint64_t));
     char *header = content + sizeof(uint64_t);
+    int tidx = 0;
 
     // Parse JSON
     yyjson_read_err error;
@@ -285,7 +286,7 @@ struct hmll_error hmll_safetensors_populate_registry(
     unsigned short *indexes = reg->indexes;
     hmll_tensor_specs_t *tensors = reg->tensors;
 
-    size_t idx, max, tidx = 0;
+    size_t idx, max;
     yyjson_val *key, *val;
     yyjson_obj_foreach(root, idx, max, key, val) {
 
