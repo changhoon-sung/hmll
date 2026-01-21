@@ -1,6 +1,5 @@
 #include "loader.hpp"
 #include <format>
-#include <sys/mman.h>
 #include <hmll/hmll.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -12,6 +11,7 @@
 namespace nb = nanobind;
 using namespace nb::literals;
 
+hmll_t* WeightLoader::context() const { return ctx_.get(); }
 hmll_device_t WeightLoader::device() const { return ctx_->fetcher->device; }
 hmll_fetcher_kind_t WeightLoader::kind() const { return ctx_->fetcher->kind; }
 
@@ -30,49 +30,49 @@ std::unique_ptr<WeightLoader> WeightLoader::from_paths(const std::vector<std::st
         }
     }
 
-    return std::make_unique<WeightLoader>(std::move(ctx), srcs, device);
+    return std::make_unique<WeightLoader>(srcs, device, std::move(ctx));
 }
 
-WeightLoader::WeightLoader(std::unique_ptr<hmll_t> ctx, std::vector<hmll_source_t>& srcs, const hmll_device_t device)
+WeightLoader::WeightLoader(std::vector<hmll_source_t> srcs, const hmll_device_t device)
+    : WeightLoader(std::move(srcs), device, std::make_unique<hmll_t>()) {}
+
+WeightLoader::WeightLoader(std::vector<hmll_source_t> srcs, const hmll_device_t device, std::unique_ptr<hmll_t> ctx)
     : ctx_(std::move(ctx)), srcs_(std::move(srcs))
 {
-    hmll_loader_init(ctx_.get(), srcs_.data(), srcs_.size(), device, HMLL_FETCHER_AUTO);
+    if (hmll_check(hmll_loader_init(ctx_.get(), srcs_.data(), srcs_.size(), device, HMLL_FETCHER_AUTO))) {
+        const std::string err = hmll_strerr(ctx_->error);
+        throw std::runtime_error("Failed to initialize loader: " + err);
+    }
 }
 
-nb::ndarray<nb::ndim<1>, nb::c_contig> WeightLoader::fetch(
-    const size_t start, const size_t end, const hmll_dtype_t dtype, const int iofile) const
+nb::ndarray<nb::ndim<1>, nb::c_contig> WeightLoader::fetch(const int iofile, const size_t start, const size_t end, const hmll_dtype_t dtype) const
 {
-    auto* buffer = new hmll_iobuf;
-    hmll_range_t offsets;
+    const auto ctx = ctx_.get();
+    const auto dev = device();
 
+    auto buf_guard = std::make_unique<hmll_iobuf_t>();
     {
         nb::gil_scoped_release release;
 
-        // Allocate buffer for the tensor
-        const auto dev = device();
         const auto nbytes = end - start;
-        buffer->ptr = hmll_get_buffer(ctx_.get(), dev, nbytes, HMLL_MEM_DEVICE);
-        buffer->size = nbytes;
-        buffer->device = dev;
+        *buf_guard = hmll_get_buffer(ctx, dev, nbytes, HMLL_MEM_DEVICE);
 
-        if (!buffer->ptr)
-            throw std::runtime_error("Failed to allocate buffer");
-
-        // Fetch the tensor data
         const auto range = hmll_range_t{start, end};
-        if (const auto res = hmll_fetch(ctx_.get(), buffer, range, iofile); res <= 0) {
-            hmll_free_buffer(buffer);
+        if (const auto res = hmll_fetch(ctx, iofile, buf_guard.get(), range); res <= 0) {
+            hmll_free_buffer(buf_guard.get());
             throw std::runtime_error("Failed to read data");
         }
     }
 
     // Let's make sure we are not deleting the buffer before PyTorch releases it
-    const nb::capsule deleter(buffer, [](void* p) noexcept {
-        if (auto* b = static_cast<hmll_iobuf_t*>(p))
+    const auto buffer = buf_guard.release();
+    nb::capsule deleter(buffer, [](void* p) noexcept {
+        if (auto* b = static_cast<hmll_iobuf_t*>(p)) {
             hmll_free_buffer(b);
+            delete b;
+        }
     });
-
-    return hmll_to_ndarray({start, end}, *buffer, dtype, deleter);
+    return hmll_to_ndarray({start, end}, buffer, dtype, std::move(deleter));
 }
 
 void init_loader(nb::module_& m)
@@ -109,7 +109,7 @@ void init_loader(nb::module_& m)
     .def(nb::new_(&WeightLoader::from_paths), "paths"_a.sig("list[str]"), "device"_a.sig("Device"))
     .def_prop_ro("device", &WeightLoader::device)
     .def_prop_ro("kind", &WeightLoader::kind)
-    .def("fetch", &WeightLoader::fetch, "start"_a.sig("int"), "end"_a.sig("int"), "dtype"_a.sig("dtype"), "iofile"_a.sig("int"))
+    .def("fetch", &WeightLoader::fetch)
     .def("__repr__", [](const WeightLoader& self)
     {
         return std::format("WeightLoader(kind={}, device={})", self.kind(), self.device());
