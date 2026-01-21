@@ -7,6 +7,8 @@
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/filesystem.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/string_view.h>
+#include <nanobind/stl/vector.h>
 #include <hmll/hmll.h>
 
 #include "loader.hpp"
@@ -22,24 +24,37 @@ class SafetensorsAccessor
     std::shared_ptr<hmll_registry_t> registry_;
 
 public:
-    explicit SafetensorsAccessor(const std::filesystem::path& path, const hmll_device_t device):
-        registry_(std::make_shared<hmll_registry_t>())
-    {
-        hmll_source_t source;
-        if (hmll_check(hmll_source_open(path.c_str(), &source)))
-            throw std::runtime_error("Failed to open file: " + path.string());
+    SafetensorsAccessor(const std::filesystem::path& path, const hmll_device_t device)
+        : SafetensorsAccessor(std::vector{path}, device) {}
 
-        loader_ = std::make_unique<WeightLoader>(std::vector{source}, device);
-        if (const auto ctx = loader_->context(); hmll_check(hmll_safetensors_populate_registry(ctx, registry_.get(), source, 0, 0)))
-            throw std::runtime_error(
-                "Failed to read tensor definition in file " + path.string() + ": " + hmll_strerr(ctx->error));
+    SafetensorsAccessor(const std::vector<std::filesystem::path>& paths, const hmll_device_t device)
+        : registry_(std::make_shared<hmll_registry_t>())
+    {
+        for (const auto& path : paths) {
+            hmll_source_t source;
+            if (hmll_check(hmll_source_open(path.c_str(), &source)))
+                throw std::runtime_error("Failed to open file: " + path.string());
+
+            loader_ = std::make_unique<WeightLoader>(std::vector{source}, device);
+            if (const auto ctx = loader_->context(); hmll_check(hmll_safetensors_populate_registry(ctx, registry_.get(), source, 0, 0)))
+                throw std::runtime_error(
+                    "Failed to read tensor definition in file " + path.string() + ": " + hmll_strerr(ctx->error));
+        }
     }
 
     [[nodiscard]] hmll_device_t device() const { return loader_->device(); }
     [[nodiscard]] size_t size() const { return registry_->num_tensors; }
-    
-    [[nodiscard]] nb::ndarray<nb::ndim<1>, nb::c_contig> fetch(const std::string& name) const
-    {;
+
+    [[nodiscard]] std::vector<std::string_view> names() const
+    {
+        auto names = std::vector<std::string_view>(size());
+        for (size_t i = 0; i < size(); ++i)
+            names[i] = std::string_view(registry_->names[i]);
+        return names;
+    }
+
+    [[nodiscard]] nb::ndarray<nb::c_contig> fetch(const std::string& name) const
+    {
         const auto registry = registry_.get();
         const auto index = hmll_find_by_name(loader_->context(), registry, name.c_str());
         
@@ -50,7 +65,7 @@ public:
         const auto iofile = registry->indexes[index];
 
         // Delegate to WeightLoader for actual fetching
-        return loader_->fetch(iofile, specs.start, specs.end, specs.dtype);
+        return loader_->fetch(iofile, specs.start, specs.end, specs.dtype, specs.shape, specs.rank);
     }
 };
 
@@ -68,9 +83,13 @@ void init_safetensors(nb::module_& m)
         nb::arg("traceback").none()
     )
     .def_prop_ro("device", &SafetensorsAccessor::device)
+    .def("names", &SafetensorsAccessor::names)
     .def("fetch", &SafetensorsAccessor::fetch);
 
     m.def("safetensors", [](const std::filesystem::path& path, const hmll_device_t device) {
         return new SafetensorsAccessor(path, device);
+    }, nb::rv_policy::take_ownership);
+    m.def("safetensors", [](const std::vector<std::filesystem::path>& paths, const hmll_device_t device) {
+        return new SafetensorsAccessor(paths, device);
     }, nb::rv_policy::take_ownership);
 }
