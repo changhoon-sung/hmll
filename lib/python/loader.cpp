@@ -45,7 +45,7 @@ WeightLoader::WeightLoader(std::vector<hmll_source_t> srcs, const hmll_device_t 
     }
 }
 
-nb::ndarray<nb::ndim<1>, nb::c_contig> WeightLoader::fetch(const int iofile, const size_t start, const size_t end, const hmll_dtype_t dtype) const
+nb::ndarray<nb::c_contig> WeightLoader::fetch(const int iofile, const size_t start, const size_t end, const hmll_dtype_t dtype, const size_t* shape, const uint8_t rank) const
 {
     const auto ctx = ctx_.get();
     const auto dev = device();
@@ -60,7 +60,8 @@ nb::ndarray<nb::ndim<1>, nb::c_contig> WeightLoader::fetch(const int iofile, con
         const auto range = hmll_range_t{start, end};
         if (const auto res = hmll_fetch(ctx, iofile, buf_guard.get(), range); res <= 0) {
             hmll_free_buffer(buf_guard.get());
-            throw std::runtime_error("Failed to read data");
+            const std::string err = hmll_strerr(ctx_->error);
+            throw std::runtime_error("Failed to read data " + err);
         }
     }
 
@@ -72,7 +73,8 @@ nb::ndarray<nb::ndim<1>, nb::c_contig> WeightLoader::fetch(const int iofile, con
             delete b;
         }
     });
-    return hmll_to_ndarray({start, end}, buffer, dtype, std::move(deleter));
+
+    return hmll_to_ndarray({start, end}, buffer, dtype, shape, rank, std::move(deleter));
 }
 
 void init_loader(nb::module_& m)
