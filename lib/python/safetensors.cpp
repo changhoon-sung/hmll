@@ -26,35 +26,51 @@ class SafetensorsAccessor
     std::shared_ptr<hmll_registry_t> registry_;
 
 public:
-    SafetensorsAccessor(const std::filesystem::path& path, const hmll_device_t device)
-        : SafetensorsAccessor(std::vector{path}, device) {}
-
-    SafetensorsAccessor(const std::vector<std::filesystem::path>& paths, const hmll_device_t device)
-        : registry_(std::make_shared<hmll_registry_t>())
+    SafetensorsAccessor(const std::filesystem::path& path, const hmll_device_t device, const bool is_shared)
     {
-        for (const auto& path : paths) {
-            hmll_source_t source;
-            if (hmll_check(hmll_source_open(path.c_str(), &source)))
+        if (is_shared) {
+            hmll_source index;
+            if (hmll_check(hmll_source_open(path.c_str(), &index)))
                 throw std::runtime_error("Failed to open file: " + path.string());
 
-            loader_ = std::make_unique<WeightLoader>(std::vector{source}, device);
-            if (const auto ctx = loader_->context(); hmll_check(hmll_safetensors_populate_registry(ctx, registry_.get(), source, 0, 0)))
-                throw std::runtime_error(
-                    "Failed to read tensor definition in file " + path.string() + ": " + hmll_strerr(ctx->error));
+            const auto registry = std::make_shared<hmll_registry_t>();
+            auto ctx = std::make_unique<hmll_t>();
+            auto num_files = 0, num_tensors = 0;
+            if ((num_files = hmll_safetensors_index(ctx.get(), registry.get(), index)) == 0) {
+                throw std::runtime_error(fmt::format("Failed to read tensor definition in file {}: {}", path, hmll_strerr(ctx->error)));
+            }
+
+            const auto parent = path.parent_path();
+            auto sources = std::vector<hmll_source_t>(num_files);
+            for (size_t i = 0; i < num_files; ++i) {
+                const auto shard = parent / fmt::format(FMT_COMPILE("model-{:05}-of-{:05}.safetensors"), i + 1, num_files);
+                if (hmll_check(hmll_source_open(shard.c_str(), &sources[i]))) {
+                    throw std::runtime_error(fmt::format(FMT_COMPILE("Failed to open file: {}"), shard.string()));
+                }
+
+                if (const auto n_tensors = hmll_safetensors_populate_registry(ctx.get(), registry.get(), sources[i], i, num_tensors); n_tensors == 0) {
+                    throw std::runtime_error(fmt::format(FMT_COMPILE("Failed to read tensor definition in file {}: {}"), shard.string(), hmll_strerr(ctx->error)));
+                } else {
+                    num_tensors += n_tensors;
+                }
+            }
+
+            loader_ = std::make_unique<WeightLoader>(sources, device, std::move(ctx));
+            registry_ = std::move(registry);
+        } else {
+            throw std::runtime_error("Single safetensors file is not supported yet");
         }
     }
-                throw std::runtime_error(fmt::format("Failed to read tensor definition in file {}: {}", path, hmll_strerr(ctx->error)));
-                    throw std::runtime_error(fmt::format(FMT_COMPILE("Failed to open file: {}"), shard.string()));
-                    throw std::runtime_error(fmt::format(FMT_COMPILE("Failed to read tensor definition in file {}: {}"), shard.string(), hmll_strerr(ctx->error)));
 
     [[nodiscard]] hmll_device_t device() const { return loader_->device(); }
     [[nodiscard]] size_t size() const { return registry_->num_tensors; }
 
     [[nodiscard]] std::vector<std::string_view> names() const
     {
-        auto names = std::vector<std::string_view>(size());
-        for (size_t i = 0; i < size(); ++i)
+        auto names = std::vector<std::string_view>(size() );
+        for (size_t i = 0; i < names.size(); ++i)
             names[i] = std::string_view(registry_->names[i]);
+
         return names;
     }
 
@@ -66,11 +82,11 @@ public:
         if (index < 0 || index >= registry->num_tensors)
             throw nb::key_error(name.c_str());
 
-        const auto specs = registry->tensors[index];
+        const auto [shape, start, end, rank, dtype] = registry->tensors[index];
         const auto iofile = registry->indexes[index];
 
         // Delegate to WeightLoader for actual fetching
-        return loader_->fetch(iofile, specs.start, specs.end, specs.dtype, specs.shape, specs.rank);
+        return loader_->fetch(iofile, start, end, dtype, shape, rank);
     }
 };
 
@@ -91,10 +107,7 @@ void init_safetensors(nb::module_& m)
     .def("names", &SafetensorsAccessor::names)
     .def("fetch", &SafetensorsAccessor::fetch);
 
-    m.def("safetensors", [](const std::filesystem::path& path, const hmll_device_t device) {
-        return new SafetensorsAccessor(path, device);
-    }, nb::rv_policy::take_ownership);
-    m.def("safetensors", [](const std::vector<std::filesystem::path>& paths, const hmll_device_t device) {
-        return new SafetensorsAccessor(paths, device);
+    m.def("safetensors", [](const std::filesystem::path& path, const hmll_device_t device, const bool is_shared) {
+        return new SafetensorsAccessor(path, device, is_shared);
     }, nb::rv_policy::take_ownership);
 }
