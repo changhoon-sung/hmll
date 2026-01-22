@@ -217,14 +217,14 @@ static ssize_t hmll_io_uring_fetch_range_impl(
              const size_t nwait = MIN(n_dma, fetcher->iocca.window);
 
             struct timespec ts_start, ts_end;
-            clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_start);
+            clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
             if (unlikely(io_uring_submit_and_wait(&fetcher->ioring, nwait) < 0)) {
                 // todo: do we need to reset the cca? hmll_io_uring_cca_init(&fetcher->iocca)
                 ctx->error = HMLL_ERR(HMLL_ERR_IO_ERROR);
                 return -1;
             }
-            clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_end);
+            clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
             // todo: approximated version of the number of bytes actually reads because it assumes full reads
             hmll_io_uring_cca_update(&fetcher->iocca, HMLL_URING_BUFFER_SIZE * nwait, ts_start, ts_end);
