@@ -12,7 +12,7 @@ set(HMLL_PYTHON_SRCS loader.cpp pyhmll.cpp)
 if(${HMLL_ENABLE_SAFETENSORS})
     add_compile_definitions(__HMLL_TENSORS_ENABLED__)
     add_compile_definitions(__HMLL_SAFETENSORS_ENABLED__)
-    list(APPEND HMLL_PYTHON_SRCS safetensors.cpp)
+    list(APPEND HMLL_PYTHON_SRCS safetensors.cpp specs.cpp)
     message(STATUS "Enabled Python safetensors binding")
 endif()
 

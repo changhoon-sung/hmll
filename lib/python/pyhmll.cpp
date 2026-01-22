@@ -7,6 +7,7 @@ void init_loader(nb::module_&);
 
 #ifdef __HMLL_SAFETENSORS_ENABLED__
 void init_safetensors(nb::module_&);
+void init_specs(nb::module_&);
 #endif
 
 NB_MODULE(_pyhmll_impl, m)
@@ -17,5 +18,6 @@ NB_MODULE(_pyhmll_impl, m)
 
 #ifdef __HMLL_SAFETENSORS_ENABLED__
     init_safetensors(m);
+    init_specs(m);
 #endif
 }

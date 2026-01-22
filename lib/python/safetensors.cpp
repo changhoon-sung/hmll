@@ -2,7 +2,9 @@
 // Created by mfuntowicz on 1/8/26.
 //
 #include <filesystem>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <fmt/compile.h>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -12,6 +14,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
+#include <nanobind/stl/pair.h>
 #include <hmll/hmll.h>
 
 #include "loader.hpp"
@@ -74,7 +77,26 @@ public:
         return names;
     }
 
-    [[nodiscard]] nb::ndarray<nb::c_contig> fetch(const std::string& name) const
+    [[nodiscard]] std::vector<hmll_tensor_specs_t*> specs() const
+    {
+        auto specs = std::vector<hmll_tensor_specs_t*>(size() );
+        for (size_t i = 0; i < specs.size(); ++i)
+            specs[i] = registry_->tensors + i;
+
+        return specs;
+    }
+
+    [[nodiscard]] std::vector<std::pair<std::string_view, hmll_tensor_specs_t*>> named_specs() const
+    {
+        auto specs = std::result_of_t<decltype(&SafetensorsAccessor::named_specs)(SafetensorsAccessor)>(size());
+        for (size_t i = 0; i < specs.size(); ++i) {
+            const auto name = std::string_view(registry_->names[i]);
+            specs[i] = std::make_pair(name, registry_->tensors + i);
+        }
+        return specs;
+    }
+
+    [[nodiscard]] nb::ndarray<nb::c_contig> afetch(const std::string& name) const
     {
         const auto registry = registry_.get();
         const auto index = hmll_find_by_name(loader_->context(), registry, name.c_str());
@@ -86,7 +108,22 @@ public:
         const auto iofile = registry->indexes[index];
 
         // Delegate to WeightLoader for actual fetching
-        return loader_->fetch(iofile, start, end, dtype, shape, rank);
+        return loader_->afetch(iofile, start, end, dtype, shape, rank);
+    }
+
+    [[nodiscard]] size_t fetch(const std::string& name, const uintptr_t dst, const size_t size) const
+    {
+        const auto registry = registry_.get();
+        const auto index = hmll_find_by_name(loader_->context(), registry, name.c_str());
+
+        if (index < 0 || index >= registry->num_tensors)
+            throw nb::key_error(name.c_str());
+
+        const auto specs = registry->tensors[index];
+        const auto iofile = registry->indexes[index];
+
+        // Delegate to WeightLoader for actual fetching
+        return loader_->fetch(iofile, specs.start, dst, size);
     }
 };
 
@@ -104,7 +141,13 @@ void init_safetensors(nb::module_& m)
         nb::arg("traceback").none()
     )
     .def_prop_ro("device", &SafetensorsAccessor::device)
-    .def("names", &SafetensorsAccessor::names)
+    .def_prop_ro("names", &SafetensorsAccessor::names)
+    .def_prop_ro("specs", &SafetensorsAccessor::specs, nb::rv_policy::reference_internal)
+    .def_prop_ro("named_specs", &SafetensorsAccessor::named_specs, nb::rv_policy::reference_internal)
+    .def("key", &SafetensorsAccessor::names)
+    .def("values", &SafetensorsAccessor::specs, nb::rv_policy::reference_internal)
+    .def("items", &SafetensorsAccessor::named_specs, nb::rv_policy::reference_internal)
+    .def("afetch", &SafetensorsAccessor::afetch)
     .def("fetch", &SafetensorsAccessor::fetch);
 
     m.def("safetensors", [](const std::filesystem::path& path, const hmll_device_t device, const bool is_shared) {

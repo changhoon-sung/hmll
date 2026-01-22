@@ -44,7 +44,7 @@ WeightLoader::WeightLoader(std::vector<hmll_source_t> srcs, const hmll_device_t 
     }
 }
 
-nb::ndarray<nb::c_contig> WeightLoader::fetch(const int iofile, const size_t start, const size_t end, const hmll_dtype_t dtype, const size_t* shape, const uint8_t rank) const
+nb::ndarray<nb::c_contig> WeightLoader::afetch(const int iofile, const size_t start, const size_t end, const hmll_dtype_t dtype, const size_t* shape, const uint8_t rank) const
 {
     const auto ctx = ctx_.get();
     const auto dev = device();
@@ -74,6 +74,23 @@ nb::ndarray<nb::c_contig> WeightLoader::fetch(const int iofile, const size_t sta
     });
 
     return hmll_to_ndarray({start, end}, buffer, dtype, shape, rank, std::move(deleter));
+}
+
+size_t WeightLoader::fetch(const int iofile, const size_t offset, const uintptr_t dst, const size_t size) const
+{
+    nb::gil_scoped_release release;
+
+    const auto ctx = ctx_.get();
+    const auto dev = device();
+
+    const auto buf_guard = std::make_unique<hmll_iobuf_t>(size, reinterpret_cast<void *>(dst), dev);
+    const auto range = hmll_range_t{offset, offset + size};
+    if (const auto res = hmll_fetch(ctx, iofile, buf_guard.get(), range); res <= 0) {
+        const std::string err = hmll_strerr(ctx_->error);
+        throw std::runtime_error("Failed to read data " + err);
+    } else {
+        return static_cast<size_t>(res);
+    }
 }
 
 void init_loader(nb::module_& m)
@@ -110,6 +127,7 @@ void init_loader(nb::module_& m)
     .def(nb::new_(&WeightLoader::from_paths), "paths"_a.sig("list[str]"), "device"_a.sig("Device"))
     .def_prop_ro("device", &WeightLoader::device)
     .def_prop_ro("kind", &WeightLoader::kind)
+    .def("afetch", &WeightLoader::afetch)
     .def("fetch", &WeightLoader::fetch)
     .def("__repr__", [](const WeightLoader& self)
     {
