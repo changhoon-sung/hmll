@@ -9,6 +9,7 @@ set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(FetchContent)
+include(cmake/fmt.cmake)
 
 ###########################################################
 # Build Arguments
@@ -30,7 +31,7 @@ endif()
 ###########################################################
 # Dependencies
 ###########################################################
-set(HMLL_LIBRARIES "")
+set(HMLL_LIBRARIES fmt::fmt)
 if(${HMLL_ENABLE_CUDA})
     find_package(CUDAToolkit REQUIRED)
     list(APPEND HMLL_LIBRARIES CUDA::cudart CUDA::cuda_driver)

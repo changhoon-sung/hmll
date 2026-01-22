@@ -3,6 +3,9 @@
 //
 #include <filesystem>
 #include <unordered_map>
+#include <fmt/compile.h>
+#include <fmt/format.h>
+#include <fmt/std.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/filesystem.h>
@@ -12,7 +15,6 @@
 #include <hmll/hmll.h>
 
 #include "loader.hpp"
-#include "ndarray.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -41,6 +43,9 @@ public:
                     "Failed to read tensor definition in file " + path.string() + ": " + hmll_strerr(ctx->error));
         }
     }
+                throw std::runtime_error(fmt::format("Failed to read tensor definition in file {}: {}", path, hmll_strerr(ctx->error)));
+                    throw std::runtime_error(fmt::format(FMT_COMPILE("Failed to open file: {}"), shard.string()));
+                    throw std::runtime_error(fmt::format(FMT_COMPILE("Failed to read tensor definition in file {}: {}"), shard.string(), hmll_strerr(ctx->error)));
 
     [[nodiscard]] hmll_device_t device() const { return loader_->device(); }
     [[nodiscard]] size_t size() const { return registry_->num_tensors; }

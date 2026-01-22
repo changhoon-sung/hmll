@@ -1,5 +1,4 @@
 #include "loader.hpp"
-#include <format>
 #include <hmll/hmll.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -114,6 +113,6 @@ void init_loader(nb::module_& m)
     .def("fetch", &WeightLoader::fetch)
     .def("__repr__", [](const WeightLoader& self)
     {
-        return std::format("WeightLoader(kind={}, device={})", self.kind(), self.device());
+        return fmt::format("WeightLoader(kind={}, device={})", self.kind(), self.device());
     });
 }

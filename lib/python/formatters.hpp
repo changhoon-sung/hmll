@@ -1,27 +1,27 @@
 #ifndef PYHMLL_FORMATTERS_H
 #define PYHMLL_FORMATTERS_H
 
-#include <format>
+#include <fmt/format.h>
 #include "hmll/types.h"
 
 template <>
-struct std::formatter<hmll_device_t> : std::formatter<std::string> {
-    auto format(const hmll_device_t& device, std::format_context& ctx) const {
+struct fmt::formatter<hmll_device_t> : formatter<std::string> {
+    auto format(const hmll_device_t& device, format_context& ctx) const {
         switch (device) {
         case HMLL_DEVICE_CPU:
-            return std::formatter<std::string>::format("CPU", ctx);
+            return formatter<std::string>::format("CPU", ctx);
         case HMLL_DEVICE_CUDA:
-            return std::formatter<std::string>::format("CUDA", ctx);
+            return formatter<std::string>::format("CUDA", ctx);
         default:
-            return std::formatter<std::string>::format("unknown", ctx);
+            return formatter<std::string>::format("unknown", ctx);
         }
     }
 };
 
 template <>
-struct std::formatter<hmll_fetcher_kind_t> : std::formatter<std::string> {
-    auto format(const hmll_fetcher_kind_t& kind, std::format_context& ctx) const {
-        return std::formatter<std::string>::format("opaque", ctx);
+struct fmt::formatter<hmll_fetcher_kind_t> : formatter<std::string> {
+    auto format(const hmll_fetcher_kind_t& kind, format_context& ctx) const {
+        return formatter<std::string>::format("opaque", ctx);
     }
 };
 
