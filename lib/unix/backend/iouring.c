@@ -214,7 +214,7 @@ static ssize_t hmll_io_uring_fetch_range_impl(
 
         // update congestion control algorithm
         if (likely(n_dma > 0)) {
-             const size_t nwait = MIN(n_dma, fetcher->iocca.window);
+             const size_t nwait = n_dma < fetcher->iocca.window ? n_dma : fetcher->iocca.window;
 
             struct timespec ts_start, ts_end;
             clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -233,10 +233,11 @@ static ssize_t hmll_io_uring_fetch_range_impl(
         unsigned count = 0;
         while ((count = io_uring_peek_batch_cqe(&fetcher->ioring, cqes, HMLL_URING_CQE_BATCH_SIZE)) > 0) {
             for (unsigned i = 0; i < count; i++) {
-                --n_dma;
 
                 const struct io_uring_cqe *cqe = cqes[i];
                 if (unlikely(cqe->user_data == HMLL_IO_URING_ADVISORY_FLAG)) continue;
+
+                --n_dma;
                 if (unlikely(cqe->res < 0)) {
                     ctx->error = HMLL_SYS_ERR(-cqe->res);
                     io_uring_cq_advance(&fetcher->ioring, i + 1);
