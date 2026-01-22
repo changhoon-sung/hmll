@@ -55,7 +55,7 @@ static struct hmll_error hmll_io_uring_register_staging_buffers(
 
     int res;
     if ((res = io_uring_register_buffers(&fetcher->ioring, fetcher->iovecs, HMLL_URING_QUEUE_DEPTH)) < 0) {
-        ctx->error = HMLL_SYS_ERR(res);
+        ctx->error = HMLL_SYS_ERR(-res);
         return ctx->error;
     }
 
@@ -238,7 +238,7 @@ static ssize_t hmll_io_uring_fetch_range_impl(
                 const struct io_uring_cqe *cqe = cqes[i];
                 if (unlikely(cqe->user_data == HMLL_IO_URING_ADVISORY_FLAG)) continue;
                 if (unlikely(cqe->res < 0)) {
-                    ctx->error = HMLL_ERR(HMLL_ERR_IO_ERROR);
+                    ctx->error = HMLL_SYS_ERR(-cqe->res);
                     io_uring_cq_advance(&fetcher->ioring, i + 1);
                     return -1;
                 }
@@ -496,7 +496,7 @@ struct hmll_error hmll_io_uring_init(struct hmll *ctx, const enum hmll_device de
 
         int res = 0;
         if ((res = io_uring_queue_init_params(HMLL_URING_QUEUE_DEPTH, &backend->ioring, &params)) < 0) {
-            ctx->error = HMLL_SYS_ERR(res);
+            ctx->error = HMLL_SYS_ERR(-res);
             return ctx->error;
         }
 
@@ -512,7 +512,7 @@ struct hmll_error hmll_io_uring_init(struct hmll *ctx, const enum hmll_device de
     } else {
         int res;
         if ((res = io_uring_queue_init_params(HMLL_URING_QUEUE_DEPTH, &backend->ioring, &params)) < 0) {
-            ctx->error = HMLL_SYS_ERR(res);
+            ctx->error = HMLL_SYS_ERR(-res);
             goto cleanup;
         }
     }

@@ -9,7 +9,7 @@
 const char *hmll_strerr(const struct hmll_error err)
 {
     if (hmll_error_is_os_error(err))
-        return strerror(-err.sys_err);
+        return strerror(err.sys_err);
 
     if (hmll_error_is_lib_error(err))
     {
