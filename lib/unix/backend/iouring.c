@@ -25,7 +25,7 @@ static inline int hmll_io_uring_get_setup_flags(void)
 
     int major, minor, revision = 0;
     if (sscanf(unamedata.release, "%d.%d.%d", &major, &minor, &revision)) {
-        if (major >= 6) flags |= IORING_SETUP_SINGLE_ISSUER;
+        // if (major >= 6) flags |= IORING_SETUP_SINGLE_ISSUER;
     }
 
     return flags;
@@ -105,12 +105,10 @@ static inline void hmll_io_uring_prep_sqe(
     const unsigned short iofile,
     const int slot
 ) {
-    io_uring_sqe_set_flags(sqe, IOSQE_FIXED_FILE);
-
     if (device == HMLL_DEVICE_CPU) {
         // CPU: Read directly into user memory
-        io_uring_sqe_set_data64(sqe, slot);
         io_uring_prep_read(sqe, iofile, dst, len, offset);
+        io_uring_sqe_set_data64(sqe, slot);
     }
 #if defined(__HMLL_CUDA_ENABLED__)
     else if (device == HMLL_DEVICE_CUDA) {
@@ -119,12 +117,14 @@ static inline void hmll_io_uring_prep_sqe(
         void *buf = fetcher->iovecs[slot].iov_base;
 
         dctx[slot].offset = offset;
-        io_uring_sqe_set_data(sqe, dctx + slot);
         io_uring_prep_read_fixed(sqe, iofile, buf, len, offset, slot);
+        io_uring_sqe_set_data(sqe, dctx + slot);
     }
 #else
     HMLL_UNUSED(fetcher);
 #endif
+
+    io_uring_sqe_set_flags(sqe, IOSQE_FIXED_FILE);
 }
 
 static inline int hmll_io_uring_get_sqe(struct hmll_io_uring *fetcher, struct io_uring_sqe **sqe)
@@ -189,7 +189,7 @@ static ssize_t hmll_io_uring_fetch_range_impl(
     const size_t size = hmll_range_size(range);
     struct io_uring_sqe *sqe = NULL;
     int slot;
-    if (likely((slot = hmll_io_uring_get_sqe(fetcher, &sqe)) >= 0)) {
+    if ((sqe = io_uring_get_sqe(&fetcher->ioring))) {
         io_uring_prep_fadvise(sqe, iofile, range.start, size, POSIX_FADV_SEQUENTIAL | POSIX_FADV_WILLNEED);
         io_uring_sqe_set_flags(sqe, IOSQE_FIXED_FILE);
         io_uring_sqe_set_data64(sqe, HMLL_IO_URING_ADVISORY_FLAG);
@@ -235,7 +235,8 @@ static ssize_t hmll_io_uring_fetch_range_impl(
             for (unsigned i = 0; i < count; i++) {
 
                 const struct io_uring_cqe *cqe = cqes[i];
-                if (unlikely(cqe->user_data == HMLL_IO_URING_ADVISORY_FLAG)) continue;
+                if (unlikely(cqe->user_data == HMLL_IO_URING_ADVISORY_FLAG) || cqe->user_data == 0)
+                    continue;
 
                 --n_dma;
                 if (unlikely(cqe->res < 0)) {
