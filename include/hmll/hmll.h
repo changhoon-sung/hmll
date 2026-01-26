@@ -34,8 +34,13 @@ extern "C" {
 #include "memory.h"
 #include "types.h"
 
-#ifdef __linux__
+#if defined(__unix)
 #include "unix/file.h"
+#endif
+
+#ifdef __linux
+#include "linux/loader.h"
+#elif __unix
 #include "unix/loader.h"
 #endif
 

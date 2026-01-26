@@ -1,10 +1,3 @@
-//
-// Created by mfuntowicz on 1/23/26.
-//
-
-#ifndef HMLL_UNIX_LOADER_H
-#define HMLL_UNIX_LOADER_H
-
 #ifndef HMLL_LINUX_FETCHER_H
 #define HMLL_LINUX_FETCHER_H
 
@@ -13,6 +6,7 @@
 enum hmll_loader_kind
 {
     HMLL_FETCHER_AUTO,
+    HMLL_FETCHER_IO_URING,
     HMLL_FETCHER_MMAP
 };
 typedef enum hmll_loader_kind hmll_fetcher_kind_t;
@@ -21,4 +15,3 @@ struct hmll_error hmll_fetcher_init_impl(struct hmll *ctx, enum hmll_device devi
 
 #endif // HMLL_LINUX_FETCHER_H
 
-#endif //HMLL_UNIX_LOADER_H
