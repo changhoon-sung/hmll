@@ -208,6 +208,7 @@ if(${HMLL_BUILD_TESTS})
             tests/tests_hmll_tensor_specs.cpp
             tests/tests_hmll_dtype.cpp
             tests/tests_hmll_safetensors.cpp
+            tests/tests_hmll_integration_safetensors.cpp
         )
     endif()
 

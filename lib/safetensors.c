@@ -62,11 +62,15 @@ HMLL_STATIC enum hmll_dtype hmll_safetensors_dtype_from_str(const char *dtype, c
     if (strncmp(dtype, "BOOL", size) == 0) return HMLL_DTYPE_BOOL;
     if (strncmp(dtype, "BF16", size) == 0) return HMLL_DTYPE_BFLOAT16;
     if (strncmp(dtype, "C64", size) == 0) return HMLL_DTYPE_COMPLEX;
-    if (strncmp(dtype, "FP4", size) == 0) return HMLL_DTYPE_FLOAT4;
+    if (strncmp(dtype, "F4", size) == 0) return HMLL_DTYPE_FLOAT4;
     if (strncmp(dtype, "F6_E2M3", size) == 0) return HMLL_DTYPE_FLOAT6_E2M3;
     if (strncmp(dtype, "F6_E3M2", size) == 0) return HMLL_DTYPE_FLOAT6_E3M2;
+    if (strncmp(dtype, "F8_E8M0", size) == 0) return HMLL_DTYPE_FLOAT8_E8M0;
     if (strncmp(dtype, "F8_E4M3", size) == 0) return HMLL_DTYPE_FLOAT8_E4M3;
     if (strncmp(dtype, "F8_E5M2", size) == 0) return HMLL_DTYPE_FLOAT8_E5M2;
+    if (strncmp(dtype, "F16", size) == 0) return HMLL_DTYPE_FLOAT16;
+    if (strncmp(dtype, "F32", size) == 0) return HMLL_DTYPE_FLOAT32;
+    if (strncmp(dtype, "F64", size) == 0) return HMLL_DTYPE_FLOAT64;
     if (strncmp(dtype, "I8", size) == 0) return HMLL_DTYPE_SIGNED_INT8;
     if (strncmp(dtype, "I16", size) == 0) return HMLL_DTYPE_SIGNED_INT16;
     if (strncmp(dtype, "I32", size) == 0) return HMLL_DTYPE_SIGNED_INT32;
@@ -75,8 +79,6 @@ HMLL_STATIC enum hmll_dtype hmll_safetensors_dtype_from_str(const char *dtype, c
     if (strncmp(dtype, "U16", size) == 0) return HMLL_DTYPE_UNSIGNED_INT16;
     if (strncmp(dtype, "U32", size) == 0) return HMLL_DTYPE_UNSIGNED_INT32;
     if (strncmp(dtype, "U64", size) == 0) return HMLL_DTYPE_UNSIGNED_INT64;
-    if (strncmp(dtype, "FP32", size) == 0) return HMLL_DTYPE_FLOAT32;
-    if (strncmp(dtype, "FP16", size) == 0) return HMLL_DTYPE_FLOAT16;
 
     return HMLL_DTYPE_UNKNOWN;
 }
@@ -357,8 +359,10 @@ size_t hmll_safetensors_populate_registry(
             goto freeup_and_exit;
         }
 
-        if (hmll_check(hmll_safetensors_header_parse_tensor(val, tensors + offset + tidx)))
+        if (hmll_check(hmll_safetensors_header_parse_tensor(val, tensors + offset + tidx))) {
+            ctx->error = HMLL_ERR(HMLL_ERR_SAFETENSORS_JSON_MALFORMED_HEADER);
             goto freeup_and_exit;
+        }
 
         // tensor offsets start at 0, we need to add header size + 8 to get the real position in the file
         tensors[offset + tidx].start += hsize + 8;

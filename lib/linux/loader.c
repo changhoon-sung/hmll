@@ -11,5 +11,7 @@ struct hmll_error hmll_fetcher_init_impl(struct hmll *ctx, const enum hmll_devic
     if (kind == HMLL_FETCHER_MMAP || kind == HMLL_FETCHER_AUTO)
         return hmll_mmap_init(ctx, device);
 
-    return HMLL_OK;
+    // Unsupported backend requested
+    ctx->error = HMLL_ERR(HMLL_ERR_UNSUPPORTED_PLATFORM);
+    return ctx->error;
 }

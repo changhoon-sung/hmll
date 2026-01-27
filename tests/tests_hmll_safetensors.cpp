@@ -14,9 +14,10 @@ TEST_CASE("safetensors dtype parsing", "[safetensors]")
 
     SECTION("floating point types") {
         REQUIRE(hmll_safetensors_dtype_from_str("BF16", 4) == HMLL_DTYPE_BFLOAT16);
-        REQUIRE(hmll_safetensors_dtype_from_str("FP16", 4) == HMLL_DTYPE_FLOAT16);
-        REQUIRE(hmll_safetensors_dtype_from_str("FP32", 4) == HMLL_DTYPE_FLOAT32);
-        REQUIRE(hmll_safetensors_dtype_from_str("FP4", 3) == HMLL_DTYPE_FLOAT4);
+        REQUIRE(hmll_safetensors_dtype_from_str("F16", 4) == HMLL_DTYPE_FLOAT16);
+        REQUIRE(hmll_safetensors_dtype_from_str("F32", 4) == HMLL_DTYPE_FLOAT32);
+        REQUIRE(hmll_safetensors_dtype_from_str("F64", 4) == HMLL_DTYPE_FLOAT64);
+        REQUIRE(hmll_safetensors_dtype_from_str("F4", 3) == HMLL_DTYPE_FLOAT4);
     }
 
     SECTION("float8 types") {
