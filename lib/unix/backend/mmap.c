@@ -8,6 +8,10 @@
 #include <string.h>
 #include <sys/mman.h>
 
+#ifndef MADV_HUGEPAGE
+#define MADV_HUGEPAGE 0
+#endif
+
 #ifndef MADV_WILLNEED
 #define MADV_WILLNEED 3
 #endif
@@ -77,11 +81,7 @@ struct hmll_error hmll_mmap_init(struct hmll *ctx, const enum hmll_device device
             goto exit;
         }
 
-#ifdef MADV_HUGEPAGE
-        if (src.size >= 2 * 1024 * 1024) madvise(buf, src.size, MADV_HUGEPAGE);
-#endif
-
-        madvise(buf, src.size, MADV_WILLNEED);
+        madvise(buf, src.size, MADV_WILLNEED | MADV_HUGEPAGE);
         backend->m_content[i] = buf;
     }
 
