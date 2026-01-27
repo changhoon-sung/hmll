@@ -1,5 +1,4 @@
 name: HMLL Build Workflow
-
 on:
   workflow_call:
     inputs:
@@ -43,10 +42,10 @@ on:
         default: true
       cuda-version:
         type: string
-        default: '12.2.0'
+        default: '13.1.0'
       python-version:
         type: string
-        default: '3.11'
+        default: '3.12'
       rust-toolchain:
         type: string
         default: 'stable'
@@ -54,13 +53,9 @@ on:
 jobs:
   build:
     runs-on: ${{ inputs.os }}
-
-    # Smart compiler defaults: explicit input > platform default
-    # Windows: don't set CC/CXX, let CMake auto-detect MSVC
     env:
-      CC: ${{ inputs.compiler-cc || (contains(inputs.os, 'macos') && 'clang' || (contains(inputs.os, 'ubuntu') && 'gcc' || '')) }}
-      CXX: ${{ inputs.compiler-cxx || (contains(inputs.os, 'macos') && 'clang++' || (contains(inputs.os, 'ubuntu') && 'g++' || '')) }}
-
+      CC: ${{ inputs.compiler-cc }}
+      CXX: ${{ inputs.compiler-cxx }}
     steps:
       - uses: actions/checkout@v6
 
@@ -70,26 +65,28 @@ jobs:
         with:
           cuda: ${{ inputs.cuda-version }}
           method: 'network'
-          sub-packages: '["nvcc"]'
+          sub-packages: ${{ runner.os == 'Windows' && '[]' || '["nvcc", "cudart"]' }}
 
       - name: Setup Python
         if: inputs.enable-python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
+          cache: 'pip' # Enable caching
 
       - name: Setup Rust
         if: inputs.enable-rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ inputs.rust-toolchain }}
+          cache: true
 
       - name: Install Python dependencies
         if: inputs.enable-python
-        shell: bash
         run: pip install pytest numpy
 
       - name: Configure CMake
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           cmake -B build -S . \
@@ -101,19 +98,28 @@ jobs:
             ${{ inputs.enable-cuda && '-DHMLL_ENABLE_CUDA=ON' || '' }} \
             ${{ inputs.enable-python && '-DHMLL_ENABLE_PYTHON=ON' || '' }}
 
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} `
+            -DHMLL_BUILD_STATIC=${{ inputs.static-build && 'ON' || 'OFF' }} `
+            -DHMLL_BUILD_TESTS=${{ inputs.run-tests && 'ON' || 'OFF' }} `
+            -DHMLL_ENABLE_SANITIZERS=${{ inputs.enable-sanitizers && 'ON' || 'OFF' }} `
+            -DHMLL_ENABLE_SAFETENSORS=ON `
+            ${{ inputs.enable-cuda && '-DHMLL_ENABLE_CUDA=ON' || '' }} `
+            ${{ inputs.enable-python && '-DHMLL_ENABLE_PYTHON=ON' || '' }}
+
       - name: Build
-        shell: bash
         run: cmake --build build --config ${{ inputs.build-type }} --parallel
 
       - name: Test C++ Library
         if: inputs.run-tests
-        shell: bash
         working-directory: build
         run: ctest -C ${{ inputs.build-type }} --output-on-failure
 
-      - name: Build Rust Bindings
+      - name: Build Rust
         if: inputs.enable-rust
-        shell: bash
         working-directory: lib/rust/hmll
         run: cargo build --release ${{ inputs.enable-safetensors && '--features safetensors' || '' }}
 
@@ -122,9 +128,3 @@ jobs:
         shell: bash
         working-directory: lib/rust/hmll
         run: cargo test ${{ inputs.enable-safetensors && '--features safetensors' || '' }}
-
-      - name: Test Python Bindings
-        if: inputs.enable-python && inputs.run-tests
-        shell: bash
-        run: |
-          python examples/read_with_hmll.py || echo "TODO: Add proper Python test suite"
