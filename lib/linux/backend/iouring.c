@@ -421,8 +421,8 @@ static ssize_t hmll_io_uring_fetchv_range_impl(
                 }
 #if defined(__HMLL_CUDA_ENABLED__)
                 else {
-                    struct hmll_io_uring_cuda_context *cctx = &((struct hmll_io_uring_cuda_context *)fetcher->device_ctx)[s_idx];
                     const uint32_t r_idx = (uint32_t)(data >> SHIFT_RANGE);
+                    struct hmll_io_uring_cuda_context *cctx = &((struct hmll_io_uring_cuda_context *)fetcher->device_ctx)[s_idx];
                     void *to = (char *)dsts[r_idx].ptr + slot_offsets[s_idx];
                     void *from = fetcher->iovecs[s_idx].iov_base;
 

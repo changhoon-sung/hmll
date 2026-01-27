@@ -42,16 +42,16 @@ extern "C" {
 #include "memory.h"
 #include "types.h"
 
-#if defined(__unix) || defined(__APPLE__)
+#if defined(__unix__) || defined(__APPLE__)
 #endif
 
-#ifdef __linux
+#if defined(__linux__)
 #include "unix/file.h"
 #include "linux/loader.h"
-#elif __unix || defined(__APPLE__)
+#elif defined(__unix__) || defined(__APPLE__)
 #include "unix/file.h"
 #include "unix/loader.h"
-#elif _WIN32
+#elif defined(_WIN32)
 #include "win32/file.h"
 #include "win32/loader.h"
 #endif
@@ -60,7 +60,13 @@ extern "C" {
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 
 /** Error handling stubs **/
+#ifdef __cplusplus
+// C++ uses brace initialization (no parenthesized type)
+#define HMLL_RES(...) hmll_error{ __VA_ARGS__ }
+#else
+// C uses compound literals
 #define HMLL_RES(...) (struct hmll_error){ __VA_ARGS__ }
+#endif
 #define HMLL_OK  HMLL_RES(.code = HMLL_ERR_SUCCESS, .sys_err = 0)
 #define HMLL_ERR(c) HMLL_RES(.code = (c), .sys_err = 0)
 #define HMLL_SYS_ERR(e) HMLL_RES(.code = HMLL_ERR_SYSTEM, .sys_err = (e))
