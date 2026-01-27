@@ -53,22 +53,39 @@ size_t calculate_elements(const uint8_t ndim) {
 TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][integration]")
 {
     // Initialize context and source
-    hmll_t ctx;
-    hmll_source_t src;
+    hmll_t ctx = {};
+    hmll_source_t src = {};
+
+#ifdef __linux__
+    // On Linux, test both IO_URING and MMAP backends
+    std::vector backends = {HMLL_FETCHER_IO_URING, HMLL_FETCHER_MMAP};
+    std::vector<std::string> backend_names = {"IO_URING", "MMAP"};
+#else
+    // On other platforms, only test MMAP
+    std::vector<hmll_loader_kind> backends = {HMLL_FETCHER_MMAP};
+    std::vector<std::string> backend_names = {"MMAP"};
+#endif
+
+    for (size_t backend_idx = 0; backend_idx < backends.size(); ++backend_idx) {
+        auto backend = backends[backend_idx];
+        const std::string& backend_name = backend_names[backend_idx];
+        INFO("Testing with backend: " << backend_name);
 
     SECTION("can open and parse safetensors file") {
         hmll_error_t err = hmll_source_open(SAFETENSORS_TEST_FILE, &src);
-        REQUIRE(hmll_success(err));
+        INFO("File open error: " << hmll_strerr(err));
+        REQUIRE_FALSE(hmll_check(err));
 
         // Parse registry
         hmll_registry_t registry = {};
-        size_t num_tensors = hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0);
+        auto num_tensors = hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0);
         REQUIRE(num_tensors > 0);
         REQUIRE(registry.num_tensors == num_tensors);
 
         // Initialize loader
-        err = hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP);
-        REQUIRE(hmll_success(err));
+        err = hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend);
+        INFO("Loader init error: " << hmll_strerr(err));
+        REQUIRE_FALSE(hmll_check(err));
 
         INFO("Successfully loaded " << num_tensors << " tensors from safetensors file");
 
@@ -79,19 +96,19 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate float32 tensors across dimensions") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         // Test dimensions 0 through 5
         for (uint8_t ndim = 0; ndim <= 5; ++ndim) {
             std::string tensor_name = "float32.dim" + std::to_string(ndim);
             INFO("Testing tensor: " << tensor_name);
 
-            const hmll_lookup_result_t lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
-            REQUIRE(hmll_success(ctx.error));
+            const auto lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
+            REQUIRE_FALSE(hmll_check(ctx.error));
             REQUIRE(lookup.specs != nullptr);
             REQUIRE(lookup.specs->dtype == HMLL_DTYPE_FLOAT32);
             REQUIRE(lookup.specs->rank == ndim);
@@ -102,18 +119,27 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             }
 
             // Fetch tensor data
-            const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
-            const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
-            REQUIRE(hmll_success(ctx.error));
+            const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
+            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
-            ssize_t bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
+            auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
-            REQUIRE(hmll_success(ctx.error));
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
             // Validate content: dim N should contain value N
-            size_t num_elements = calculate_elements(ndim);
+            auto num_elements = calculate_elements(ndim);
             auto expected_value = static_cast<float>(ndim);
             validate_uniform_tensor_approx<float>(buffer, num_elements, expected_value);
+
+            // Verify sum equals ndim * num_elements
+            const auto* data = static_cast<const float*>(buffer.ptr);
+            float sum = 0.0f;
+            for (size_t i = 0; i < num_elements; ++i) {
+                sum += data[i];
+            }
+            float expected_sum = expected_value * num_elements;
+            REQUIRE(std::abs(sum - expected_sum) < 1e-3f);
 
             hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
         }
@@ -124,32 +150,41 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate int32 tensors across dimensions") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         for (uint8_t ndim = 0; ndim <= 5; ++ndim) {
             std::string tensor_name = "int32.dim" + std::to_string(ndim);
             INFO("Testing tensor: " << tensor_name);
 
             const hmll_lookup_result_t lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
-            REQUIRE(hmll_success(ctx.error));
+            REQUIRE_FALSE(hmll_check(ctx.error));
             REQUIRE(lookup.specs != nullptr);
             REQUIRE(lookup.specs->dtype == HMLL_DTYPE_SIGNED_INT32);
             REQUIRE(lookup.specs->rank == ndim);
 
             const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
             const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
-            REQUIRE(hmll_success(ctx.error));
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
-            ssize_t bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
+            auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
 
-            size_t num_elements = calculate_elements(ndim);
+            auto num_elements = calculate_elements(ndim);
             auto expected_value = static_cast<int32_t>(ndim);
             validate_uniform_tensor<int32_t>(buffer, num_elements, expected_value);
+
+            // Verify sum equals ndim * num_elements
+            const auto* data = static_cast<const int32_t*>(buffer.ptr);
+            int64_t sum = 0;
+            for (size_t i = 0; i < num_elements; ++i) {
+                sum += data[i];
+            }
+            auto expected_sum = static_cast<int64_t>(expected_value) * num_elements;
+            REQUIRE(sum == expected_sum);
 
             hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
         }
@@ -160,32 +195,41 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate uint8 tensors across dimensions") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         for (uint8_t ndim = 0; ndim <= 5; ++ndim) {
             std::string tensor_name = "uint8.dim" + std::to_string(ndim);
             INFO("Testing tensor: " << tensor_name);
 
-            const hmll_lookup_result_t lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
-            REQUIRE(hmll_success(ctx.error));
+            const auto lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
+            REQUIRE_FALSE(hmll_check(ctx.error));
             REQUIRE(lookup.specs != nullptr);
             REQUIRE(lookup.specs->dtype == HMLL_DTYPE_UNSIGNED_INT8);
             REQUIRE(lookup.specs->rank == ndim);
 
-            const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
-            const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
-            REQUIRE(hmll_success(ctx.error));
+            const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
+            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
-            ssize_t bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
+            auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
 
-            size_t num_elements = calculate_elements(ndim);
-            auto expected_value = static_cast<uint8_t>(ndim);
+            auto num_elements = calculate_elements(ndim);
+            auto expected_value = ndim;
             validate_uniform_tensor<uint8_t>(buffer, num_elements, expected_value);
+
+            // Verify sum equals ndim * num_elements
+            const auto* data = static_cast<const uint8_t*>(buffer.ptr);
+            uint64_t sum = 0;
+            for (size_t i = 0; i < num_elements; ++i) {
+                sum += data[i];
+            }
+            uint64_t expected_sum = static_cast<uint64_t>(expected_value) * num_elements;
+            REQUIRE(sum == expected_sum);
 
             hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
         }
@@ -196,32 +240,41 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate int64 tensors across dimensions") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         for (uint8_t ndim = 0; ndim <= 5; ++ndim) {
             std::string tensor_name = "int64.dim" + std::to_string(ndim);
             INFO("Testing tensor: " << tensor_name);
 
             const hmll_lookup_result_t lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
-            REQUIRE(hmll_success(ctx.error));
+            REQUIRE_FALSE(hmll_check(ctx.error));
             REQUIRE(lookup.specs != nullptr);
             REQUIRE(lookup.specs->dtype == HMLL_DTYPE_SIGNED_INT64);
             REQUIRE(lookup.specs->rank == ndim);
 
             const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
             const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
-            REQUIRE(hmll_success(ctx.error));
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
-            ssize_t bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
+            auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
 
-            size_t num_elements = calculate_elements(ndim);
-            auto expected_value = static_cast<int64_t>(ndim);
-            validate_uniform_tensor<int64_t>(buffer, num_elements, expected_value);
+            auto num_elements = calculate_elements(ndim);
+            auto expected_value = static_cast<uint64_t>(ndim);
+            validate_uniform_tensor<uint64_t>(buffer, num_elements, expected_value);
+
+            // Verify sum equals ndim * num_elements
+            const auto* data = static_cast<const int64_t*>(buffer.ptr);
+            uint64_t sum = 0;
+            for (size_t i = 0; i < num_elements; ++i) {
+                sum += data[i];
+            }
+            auto expected_sum = expected_value * num_elements;
+            REQUIRE(sum == expected_sum);
 
             hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
         }
@@ -232,29 +285,29 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate bfloat16 tensors exist and can be fetched") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         for (uint8_t ndim = 0; ndim <= 5; ++ndim) {
             std::string tensor_name = "bfloat16.dim" + std::to_string(ndim);
             INFO("Testing tensor: " << tensor_name);
 
-            const hmll_lookup_result_t lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
-            REQUIRE(hmll_success(ctx.error));
+            const auto lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
+            REQUIRE_FALSE(hmll_check(ctx.error));
             REQUIRE(lookup.specs != nullptr);
             REQUIRE(lookup.specs->dtype == HMLL_DTYPE_BFLOAT16);
             REQUIRE(lookup.specs->rank == ndim);
 
-            const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
-            const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
-            REQUIRE(hmll_success(ctx.error));
+            const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
+            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
-            ssize_t bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
+            auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
-            REQUIRE(hmll_success(ctx.error));
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
             hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
         }
@@ -265,27 +318,27 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate complex64 tensors exist") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         for (uint8_t ndim = 0; ndim <= 5; ++ndim) {
             std::string tensor_name = "complex64.dim" + std::to_string(ndim);
             INFO("Testing tensor: " << tensor_name);
 
-            const hmll_lookup_result_t lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
-            REQUIRE(hmll_success(ctx.error));
+            const auto lookup = hmll_lookup_tensor(&ctx, &registry, tensor_name.c_str());
+            REQUIRE_FALSE(hmll_check(ctx.error));
             REQUIRE(lookup.specs != nullptr);
             REQUIRE(lookup.specs->dtype == HMLL_DTYPE_COMPLEX);
             REQUIRE(lookup.specs->rank == ndim);
 
-            const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
-            const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
-            REQUIRE(hmll_success(ctx.error));
+            const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
+            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            REQUIRE_FALSE(hmll_check(ctx.error));
 
-            ssize_t bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
+            auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
 
             hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
@@ -297,11 +350,11 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
     }
 
     SECTION("validate all expected tensor names exist") {
-        REQUIRE(hmll_success(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+        REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
 
         hmll_registry_t registry = {};
         REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
-        REQUIRE(hmll_success(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, HMLL_FETCHER_MMAP)));
+        REQUIRE_FALSE(hmll_check(hmll_loader_init(&ctx, &src, 1, HMLL_DEVICE_CPU, backend)));
 
         // Test a sampling of expected dtype+dimension combinations
         std::vector<std::string> expected_tensors = {
@@ -326,4 +379,5 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         hmll_destroy(&ctx);
         hmll_source_close(&src);
     }
+    } // end backend loop
 }
