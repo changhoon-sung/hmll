@@ -236,7 +236,7 @@ static ssize_t hmll_io_uring_fetch_range_impl(
             for (unsigned i = 0; i < count; i++) {
 
                 const struct io_uring_cqe *cqe = cqes[i];
-                if (unlikely(cqe->user_data == HMLL_IO_URING_ADVISORY_FLAG) || cqe->user_data == 0)
+                if (unlikely(cqe->user_data == HMLL_IO_URING_ADVISORY_FLAG))
                     continue;
 
                 --n_dma;
