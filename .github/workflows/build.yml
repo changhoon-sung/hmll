@@ -68,8 +68,7 @@ jobs:
           sub-packages: ${{ runner.os == 'Windows' && '[]' || '["nvcc", "cudart"]' }}
 
       - name: Setup Python
-        if: inputs.enable-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python-version }}
           cache: 'pip'
