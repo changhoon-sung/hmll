@@ -81,13 +81,10 @@ jobs:
           cache: true
 
       - name: Install Python dependencies
-        if: inputs.enable-python
-        run: pip install pytest numpy
+        run: python3 -m pip install numpy torch safetensors packaging
 
       - name: Create test-scoped safetensors file
-        run: |
-          python3 -m pip install torch safetensors packaging
-          python3 scripts/create_testing_safetensors.py
+        run: python3 scripts/create_testing_safetensors.py
 
       - name: Configure CMake
         if: runner.os != 'Windows'
