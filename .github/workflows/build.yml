@@ -85,7 +85,9 @@ jobs:
         run: pip install pytest numpy
 
       - name: Create test-scoped safetensors file
-        run: python3 scripts/create_testing_safetensors.py
+        run: |
+          python3 -m pip install torch
+          python3 scripts/create_testing_safetensors.py
 
       - name: Configure CMake
         if: runner.os != 'Windows'
