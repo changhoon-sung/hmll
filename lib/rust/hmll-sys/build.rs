@@ -73,7 +73,6 @@ fn build_vendored() -> PathBuf {
     let dst = cmake_config.build();
 
     // Tell cargo to link the library
-    println!("cargo:warning=libhmll path: {}", dst.display());
     println!("cargo:rustc-link-search=native={}/build", dst.display());
     println!("cargo:rustc-link-lib=static=hmll");
 

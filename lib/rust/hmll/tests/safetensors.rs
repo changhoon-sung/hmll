@@ -87,7 +87,7 @@ fn test_parse_safetensors_f32_tensor() {
     let data = vec![0u8; 16]; // 4 floats * 4 bytes
     let file = create_safetensors(&[TensorDef {
         name: "test_tensor",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[2, 2],
         data: &data,
     }]);
@@ -134,7 +134,7 @@ fn test_registry_iteration() {
     let data = vec![0u8; 8];
     let file = create_safetensors(&[TensorDef {
         name: "layer.weight",
-        dtype: "FP16",
+        dtype: "F16",
         shape: &[2, 2],
         data: &data,
     }]);
@@ -195,19 +195,19 @@ fn test_multiple_tensors() {
     let file = create_safetensors(&[
         TensorDef {
             name: "weight",
-            dtype: "FP32",
+            dtype: "F32",
             shape: &[4, 4],
             data: &weight_data,
         },
         TensorDef {
             name: "bias",
-            dtype: "FP32",
+            dtype: "F32",
             shape: &[4],
             data: &bias_data,
         },
         TensorDef {
             name: "running_mean",
-            dtype: "FP32",
+            dtype: "F32",
             shape: &[4],
             data: &mean_data,
         },
@@ -276,7 +276,7 @@ fn test_tensor_shapes() {
     // 1D tensor
     let file = create_safetensors(&[TensorDef {
         name: "vec",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[16],
         data: &vec![0u8; 64],
     }]);
@@ -289,7 +289,7 @@ fn test_tensor_shapes() {
     // 3D tensor
     let file = create_safetensors(&[TensorDef {
         name: "cube",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[2, 3, 4],
         data: &vec![0u8; 96],
     }]);
@@ -302,7 +302,7 @@ fn test_tensor_shapes() {
     // 4D tensor (like conv weights)
     let file = create_safetensors(&[TensorDef {
         name: "conv",
-        dtype: "FP16",
+        dtype: "F16",
         shape: &[64, 32, 3, 3],
         data: &vec![0u8; 36864],
     }]);
@@ -317,7 +317,7 @@ fn test_tensor_shapes() {
 fn test_scalar_tensor() {
     let file = create_safetensors(&[TensorDef {
         name: "scalar",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[],
         data: &vec![0u8; 4],
     }]);
@@ -332,7 +332,7 @@ fn test_scalar_tensor() {
 fn test_tensor_size_bytes() {
     let file = create_safetensors(&[TensorDef {
         name: "tensor",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[2, 2],
         data: &vec![0u8; 16],
     }]);
@@ -346,7 +346,7 @@ fn test_tensor_size_bytes() {
 fn test_registry_get_out_of_bounds() {
     let file = create_safetensors(&[TensorDef {
         name: "tensor",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[2, 2],
         data: &vec![0u8; 16],
     }]);
@@ -363,7 +363,7 @@ fn test_safetensors_with_metadata() {
     let file = create_safetensors_with_metadata(
         &[TensorDef {
             name: "tensor",
-            dtype: "FP32",
+            dtype: "F32",
             shape: &[4],
             data: &vec![0u8; 16],
         }],
@@ -385,7 +385,7 @@ fn test_large_tensor_count() {
     let tensors: Vec<_> = (0..50)
         .map(|i| TensorDef {
             name: Box::leak(format!("layer_{}", i).into_boxed_str()),
-            dtype: "FP32",
+            dtype: "F32",
             shape: &[8, 8],
             data: &data,
         })
@@ -467,7 +467,7 @@ fn test_roundtrip_tensor_data() {
 
     let file = create_safetensors(&[TensorDef {
         name: "test",
-        dtype: "FP32",
+        dtype: "F32",
         shape: &[2, 2],
         data: &data,
     }]);
@@ -510,13 +510,13 @@ fn test_sharded_safetensors() {
         &[
             TensorDef {
                 name: "layer1.weight",
-                dtype: "FP32",
+                dtype: "F32",
                 shape: &[4, 4],
                 data: &shard1_data[..64],
             },
             TensorDef {
                 name: "layer1.bias",
-                dtype: "FP32",
+                dtype: "F32",
                 shape: &[4],
                 data: &shard1_data[64..],
             },
@@ -531,13 +531,13 @@ fn test_sharded_safetensors() {
         &[
             TensorDef {
                 name: "layer2.weight",
-                dtype: "FP32",
+                dtype: "F32",
                 shape: &[4, 4],
                 data: &shard2_data[..64],
             },
             TensorDef {
                 name: "layer2.bias",
-                dtype: "FP32",
+                dtype: "F32",
                 shape: &[4],
                 data: &shard2_data[64..],
             },
