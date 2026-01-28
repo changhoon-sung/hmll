@@ -183,11 +183,11 @@ TEST_CASE("hmll_strerr returns specific message for mapped error codes", "[error
 
     err = HMLL_ERR(HMLL_ERR_TABLE_EMPTY);
     msg = hmll_strerr(err);
-    REQUIRE(strcmp(msg, "No tensors found while reading the file") == 0);
+    REQUIRE(strcmp(msg, "No tensors found") == 0);
 
     err = HMLL_ERR(HMLL_ERR_TENSOR_NOT_FOUND);
     msg = hmll_strerr(err);
-    REQUIRE(strcmp(msg, "Tensor not found in the known tensors table") == 0);
+    REQUIRE(strcmp(msg, "Tensor not found") == 0);
 
     err = HMLL_ERR(HMLL_ERR_CUDA_NOT_ENABLED);
     msg = hmll_strerr(err);
@@ -200,7 +200,7 @@ TEST_CASE("hmll_strerr returns specific message for mapped error codes", "[error
 
 TEST_CASE("hmll_strerr returns unknown error message for unmapped error codes", "[error]")
 {
-    auto err = HMLL_ERR(HMLL_ERR_BUFFER_TOO_SMALL);
+    auto err = HMLL_ERR((hmll_error_code_t)123567);
     const char* msg = hmll_strerr(err);
     REQUIRE(strstr(msg, "Unknown error") != nullptr);
 }
