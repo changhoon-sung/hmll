@@ -32,12 +32,12 @@ public:
     SafetensorsAccessor(const std::filesystem::path& path, const hmll_device_t device, const bool is_shared)
     {
         if (is_shared) {
-            hmll_source index;
+            hmll_source index{};
             const auto path_str = path.string();
             if (hmll_check(hmll_source_open(path_str.c_str(), &index)))
                 throw std::runtime_error("Failed to open file: " + path_str);
 
-            const auto registry = std::make_shared<hmll_registry_t>();
+            auto registry = std::make_shared<hmll_registry_t>();
             auto ctx = std::make_unique<hmll_t>();
             size_t num_files = 0, num_tensors = 0;
             if ((num_files = hmll_safetensors_index(ctx.get(), registry.get(), index)) == 0) {
