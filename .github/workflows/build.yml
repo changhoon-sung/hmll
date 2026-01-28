@@ -84,7 +84,10 @@ jobs:
         run: python3 -m pip install numpy torch safetensors packaging
 
       - name: Create test-scoped safetensors file
-        run: python3 scripts/create_testing_safetensors.py
+        id: create-safetensors
+        run: |
+          FPATH=$(python3 scripts/create_testing_safetensors.py)
+          echo "filepath=$FPATH" >> $GITHUB_OUTPUT
 
       - name: Configure CMake
         if: runner.os != 'Windows'
@@ -117,6 +120,8 @@ jobs:
       - name: Test C++ Library
         if: inputs.run-tests
         working-directory: build
+        env:
+          HMLL_CI_SAFETENSORS_INTEGRATION_FPATH: ${{ steps.create-safetensors.outputs.filepath }}
         run: ctest -C ${{ inputs.build-type }} --output-on-failure
 
       - name: Build Rust

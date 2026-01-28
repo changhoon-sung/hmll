@@ -6,9 +6,7 @@
 #include "hmll/hmll.h"
 #include <cmath>
 #include <complex>
-
-// Fixture path - adjust relative to test binary location
-#define SAFETENSORS_TEST_FILE "hmll.safetensors"
+#include <fmt/format.h>
 
 // Helper function to validate scalar tensor content
 template<typename T>
@@ -50,8 +48,15 @@ size_t calculate_elements(const uint8_t ndim) {
     return total;
 }
 
+#define HMLL_CI_SAFETENSORS_INTEGRATION_FPATH "HMLL_CI_SAFETENSORS_INTEGRATION_FPATH"
 TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][integration]")
 {
+    char* fpath = nullptr;
+    if (fpath = std::getenv(HMLL_CI_SAFETENSORS_INTEGRATION_FPATH); fpath == nullptr)
+    {
+        SKIP(fmt::format("{} not provided", HMLL_CI_SAFETENSORS_INTEGRATION_FPATH));
+    }
+
     // Initialize context and source
     hmll_t ctx = {};
     hmll_source_t src = {};
@@ -69,7 +74,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         INFO("Testing with backend: " << name);
 
         SECTION("can open and parse safetensors file") {
-            hmll_error_t err = hmll_source_open(SAFETENSORS_TEST_FILE, &src);
+            hmll_error_t err = hmll_source_open(fpath, &src);
             INFO("File open error: " << hmll_strerr(err));
             REQUIRE_FALSE(hmll_check(err));
 
@@ -93,7 +98,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate float32 tensors across dimensions") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
@@ -147,7 +152,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate int32 tensors across dimensions") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
@@ -192,7 +197,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate uint8 tensors across dimensions") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
@@ -237,7 +242,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate int64 tensors across dimensions") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
@@ -282,7 +287,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate bfloat16 tensors exist and can be fetched") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
@@ -315,7 +320,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate complex64 tensors exist") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);
@@ -347,7 +352,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
         }
 
         SECTION("validate all expected tensor names exist") {
-            REQUIRE_FALSE(hmll_check(hmll_source_open(SAFETENSORS_TEST_FILE, &src)));
+            REQUIRE_FALSE(hmll_check(hmll_source_open(fpath, &src)));
 
             hmll_registry_t registry = {};
             REQUIRE(hmll_safetensors_populate_registry(&ctx, &registry, src, 0, 0) > 0);

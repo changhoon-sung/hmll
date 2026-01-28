@@ -1,3 +1,6 @@
+from os import getcwd
+from pathlib import Path
+
 import torch
 from safetensors.torch import save_file
 
@@ -54,4 +57,8 @@ if __name__ == '__main__':
 
                 ts[tensor_name] = tensor
 
-    save_file(ts, "hmll.safetensors")
+    cwd = getcwd()
+    fpath = Path(cwd) / "hmll.safetensors"
+    save_file(ts, fpath)
+
+    print(fpath)
