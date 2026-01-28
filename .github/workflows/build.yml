@@ -86,7 +86,7 @@ jobs:
 
       - name: Create test-scoped safetensors file
         run: |
-          python3 -m pip install torch
+          python3 -m pip install torch safetensors
           python3 scripts/create_testing_safetensors.py
 
       - name: Configure CMake
