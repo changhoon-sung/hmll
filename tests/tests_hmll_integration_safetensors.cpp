@@ -58,12 +58,12 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
 
 #ifdef __linux__
     // On Linux, test both IO_URING and MMAP backends
-    std::vector backends = {HMLL_FETCHER_IO_URING, HMLL_FETCHER_MMAP};
-    std::vector<std::string> backend_names = {"IO_URING", "MMAP"};
+    constexpr std::array backends = {HMLL_FETCHER_IO_URING, HMLL_FETCHER_MMAP};
+    constexpr std::array backend_names = {"IO_URING", "MMAP"};
 #else
     // On other platforms, only test MMAP
-    std::vector<hmll_loader_kind> backends = {HMLL_FETCHER_MMAP};
-    std::vector<std::string> backend_names = {"MMAP"};
+    constexpr std::array backends = {HMLL_FETCHER_MMAP};
+    constexpr std::array backend_names = {"MMAP"};
 #endif
 
     for (size_t backend_idx = 0; backend_idx < backends.size(); ++backend_idx) {
@@ -120,7 +120,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
 
             // Fetch tensor data
             const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
-            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
             auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
@@ -141,7 +141,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             float expected_sum = expected_value * num_elements;
             REQUIRE(std::abs(sum - expected_sum) < 1e-3f);
 
-            hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
+            hmll_free_buffer(&buffer);
         }
 
         hmll_free_registry(&registry);
@@ -167,7 +167,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             REQUIRE(lookup.specs->rank == ndim);
 
             const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
-            const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
             auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
@@ -186,7 +186,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             auto expected_sum = static_cast<int64_t>(expected_value) * num_elements;
             REQUIRE(sum == expected_sum);
 
-            hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
+            hmll_free_buffer(&buffer);
         }
 
         hmll_free_registry(&registry);
@@ -212,7 +212,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             REQUIRE(lookup.specs->rank == ndim);
 
             const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
-            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+             auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
             auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
@@ -231,7 +231,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             uint64_t expected_sum = static_cast<uint64_t>(expected_value) * num_elements;
             REQUIRE(sum == expected_sum);
 
-            hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
+            hmll_free_buffer(&buffer);
         }
 
         hmll_free_registry(&registry);
@@ -257,15 +257,15 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             REQUIRE(lookup.specs->rank == ndim);
 
             const hmll_range_t range = {lookup.specs->start, lookup.specs->end};
-            const hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            hmll_iobuf_t buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
             auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
 
             auto num_elements = calculate_elements(ndim);
-            auto expected_value = static_cast<uint64_t>(ndim);
-            validate_uniform_tensor<uint64_t>(buffer, num_elements, expected_value);
+            auto expected_value = static_cast<int64_t>(ndim);
+            validate_uniform_tensor<int64_t>(buffer, num_elements, expected_value);
 
             // Verify sum equals ndim * num_elements
             const auto* data = static_cast<const int64_t*>(buffer.ptr);
@@ -276,7 +276,7 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             auto expected_sum = expected_value * num_elements;
             REQUIRE(sum == expected_sum);
 
-            hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
+            hmll_free_buffer(&buffer);
         }
 
         hmll_free_registry(&registry);
@@ -302,14 +302,14 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             REQUIRE(lookup.specs->rank == ndim);
 
             const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
-            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
             auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
-            hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
+            hmll_free_buffer(&buffer);
         }
 
         hmll_free_registry(&registry);
@@ -335,13 +335,13 @@ TEST_CASE("safetensors integration - read multi-dtype file", "[safetensors][inte
             REQUIRE(lookup.specs->rank == ndim);
 
             const auto range = hmll_range_t {lookup.specs->start, lookup.specs->end};
-            const auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
+            auto buffer = hmll_get_buffer_for_range(&ctx, ctx.fetcher->device, range);
             REQUIRE_FALSE(hmll_check(ctx.error));
 
             auto bytes_read = hmll_fetch(&ctx, lookup.file, &buffer, range);
             REQUIRE(bytes_read > 0);
 
-            hmll_free_buffer(const_cast<hmll_iobuf_t*>(&buffer));
+            hmll_free_buffer(&buffer);
         }
 
         hmll_free_registry(&registry);
