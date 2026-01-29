@@ -12,7 +12,7 @@ void init_specs(nb::module_&);
 
 NB_MODULE(_pyhmll_impl, m)
 {
-    m.doc() = "hmll: Hugging Face Model Loading Library - Efficient AI Model loading for modern AI workloads.";
+    m.doc() = "hmll: High-Performance Model Loading Library - Efficient AI Model loading for modern AI workloads.";
 
     init_loader(m);
 

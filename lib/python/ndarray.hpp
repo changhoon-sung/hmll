@@ -88,7 +88,6 @@ static constexpr nb::dlpack::dtype hmll_dtype_to_dlpack(const hmll_dtype_t dtype
 
 
 static nb::ndarray<nb::c_contig> hmll_to_ndarray(
-    const hmll_range_t range,
     const hmll_iobuf_t* buffer,
     const hmll_dtype_t dtype,
     const size_t* shape,

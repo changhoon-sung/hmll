@@ -5,10 +5,13 @@
 
 #include "formatters.hpp"
 #include "ndarray.hpp"
+#include "fmt/compile.h"
 #include "hmll/memory.h"
 
 namespace nb = nanobind;
 using namespace nb::literals;
+
+static constexpr auto PYHMLL_ERR_FETCH = FMT_COMPILE("Failed to fetch data: {}");
 
 hmll_t* WeightLoader::context() const { return ctx_.get(); }
 hmll_device_t WeightLoader::device() const { return ctx_->fetcher->device; }
@@ -25,7 +28,7 @@ std::unique_ptr<WeightLoader> WeightLoader::from_paths(const std::vector<std::st
             for (size_t j = 0; j < i; ++j) {
                 hmll_source_close(&srcs[j]);
             }
-            throw std::runtime_error(paths[i] + ": " + hmll_strerr(res));
+            throw std::runtime_error(fmt::format(FMT_COMPILE("{}: {}"), paths[i], std::string_view { hmll_strerr(res) }));
         }
     }
 
@@ -60,7 +63,7 @@ nb::ndarray<nb::c_contig> WeightLoader::afetch(const int iofile, const size_t st
         if (const auto res = hmll_fetch(ctx, iofile, buf_guard.get(), range); res <= 0) {
             hmll_free_buffer(buf_guard.get());
             const std::string err = hmll_strerr(ctx_->error);
-            throw std::runtime_error("Failed to read data " + err);
+            throw std::runtime_error(fmt::format(PYHMLL_ERR_FETCH, err));
         }
     }
 
@@ -73,7 +76,7 @@ nb::ndarray<nb::c_contig> WeightLoader::afetch(const int iofile, const size_t st
         }
     });
 
-    return hmll_to_ndarray({start, end}, buffer, dtype, shape, rank, std::move(deleter));
+    return hmll_to_ndarray(buffer, dtype, shape, rank, std::move(deleter));
 }
 
 size_t WeightLoader::fetch(const int iofile, const size_t offset, const uintptr_t dst, const size_t size) const
@@ -83,17 +86,17 @@ size_t WeightLoader::fetch(const int iofile, const size_t offset, const uintptr_
     const auto ctx = ctx_.get();
     const auto dev = device();
 
-    hmll_iobuf_t buf = {size, reinterpret_cast<void *>(dst), dev};
+    const hmll_iobuf_t buf = {size, reinterpret_cast<void *>(dst), dev};
     const auto range = hmll_range_t{offset, offset + size};
     if (const auto res = hmll_fetch(ctx, iofile, &buf, range); res <= 0) {
         const std::string err = hmll_strerr(ctx_->error);
-        throw std::runtime_error("Failed to read data " + err);
+        throw std::runtime_error(fmt::format(PYHMLL_ERR_FETCH, err));
     } else {
         return static_cast<size_t>(res);
     }
 }
 
-void init_loader(nb::module_& m)
+void init_loader(const nb::module_& m)
 {
     nb::enum_<hmll_device_t>(m, "Device", R"pbdoc(Define all the targetable devices)pbdoc")
     .value("CPU", HMLL_DEVICE_CPU, "Target CPU device")
@@ -131,6 +134,6 @@ void init_loader(nb::module_& m)
     .def("fetch", &WeightLoader::fetch)
     .def("__repr__", [](const WeightLoader& self)
     {
-        return fmt::format("WeightLoader(kind={}, device={})", self.kind(), self.device());
+        return fmt::format(FMT_COMPILE("WeightLoader(kind={}, device={}})"), self.kind(), self.device());
     });
 }
