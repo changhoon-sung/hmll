@@ -96,7 +96,7 @@ size_t WeightLoader::fetch(const int iofile, const size_t offset, const uintptr_
     }
 }
 
-void init_loader(const nb::module_& m)
+void init_loader(nb::module_& m)
 {
     nb::enum_<hmll_device_t>(m, "Device", R"pbdoc(Define all the targetable devices)pbdoc")
     .value("CPU", HMLL_DEVICE_CPU, "Target CPU device")
@@ -114,6 +114,7 @@ void init_loader(const nb::module_& m)
     .value("FLOAT8_E8M0", HMLL_DTYPE_FLOAT8_E8M0)
     .value("FLOAT16", HMLL_DTYPE_FLOAT16)
     .value("FLOAT32", HMLL_DTYPE_FLOAT32)
+    .value("FLOAT64", HMLL_DTYPE_FLOAT64)
     .value("SIGNED_INT4", HMLL_DTYPE_SIGNED_INT4)
     .value("SIGNED_INT8", HMLL_DTYPE_SIGNED_INT8)
     .value("SIGNED_INT16", HMLL_DTYPE_SIGNED_INT16)
