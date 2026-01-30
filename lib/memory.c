@@ -15,3 +15,13 @@ struct hmll_iobuf hmll_get_buffer_for_range(struct hmll *ctx, const enum hmll_de
 
     return buf;
 }
+
+struct hmll_iobuf hmll_slice_buffer(const struct hmll_iobuf *src, const struct hmll_range slice)
+{
+    if (slice.end - slice.start < src->size) {
+        void *ptr = (unsigned char *)src->ptr + slice.start;
+        return (struct hmll_iobuf) {slice.end - slice.start,  ptr, src->device};
+    }
+
+    return (struct hmll_iobuf){0};
+}
