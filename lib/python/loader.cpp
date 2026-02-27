@@ -57,7 +57,7 @@ nb::ndarray<nb::c_contig> WeightLoader::afetch(const int iofile, const size_t st
         nb::gil_scoped_release release;
 
         const auto nbytes = end - start;
-        *buf_guard = hmll_get_buffer(ctx, dev, nbytes, HMLL_MEM_DEVICE);
+        *buf_guard = hmll_get_buffer(ctx, nbytes, HMLL_MEM_DEVICE);
 
         if (const auto res = hmll_fetch(ctx, iofile, buf_guard.get(), start); res <= 0) {
             hmll_free_buffer(buf_guard.get());
@@ -97,9 +97,19 @@ size_t WeightLoader::fetch(const int iofile, const size_t offset, const uintptr_
 
 void init_loader(nb::module_& m)
 {
-    nb::enum_<hmll_device_t>(m, "Device", R"pbdoc(Define all the targetable devices)pbdoc")
-    .value("CPU", HMLL_DEVICE_CPU, "Target CPU device")
-    .value("CUDA", HMLL_DEVICE_CUDA, "Target CUDA device");
+    nb::class_<hmll_device_t>(m, "Device", R"pbdoc(Define all the targetable devices)pbdoc")
+    .def_static("cpu", &hmll_device_cpu, "Create CPU device")
+    .def_static("cuda", &hmll_device_cuda, "idx"_a = 0, "Create CUDA device with index")
+    .def_prop_ro("kind", [](const hmll_device_t& d) { return d.kind; })
+    .def_prop_ro("idx", [](const hmll_device_t& d) { return d.idx; })
+    .def_prop_ro("is_cpu", [](const hmll_device_t& d) { return hmll_device_is_cpu(d); })
+    .def_prop_ro("is_cuda", [](const hmll_device_t& d) { return hmll_device_is_cuda(d); })
+    .def("__eq__", [](const hmll_device_t& a, const hmll_device_t& b) { return hmll_device_eq(a, b); })
+    .def("__repr__", [](const hmll_device_t& d) { return hmll_device_is_cpu(d) ? "Device.cpu()" : fmt::format("Device.cuda({})", d.idx); });
+
+    nb::enum_<hmll_device_kind_t>(m, "DeviceKind", R"pbdoc(Define all the targetable devices)pbdoc")
+    .value("CPU", HMLL_DEVICE_CPU)
+    .value("CUDA", HMLL_DEVICE_CUDA);
 
     nb::enum_<hmll_fetcher_kind_t>(m, "Backend", R"pbdoc(Define the I/O backend to use)pbdoc")
     .value("AUTO", HMLL_FETCHER_AUTO, "Automatically select backend (defaults to MMAP)")
