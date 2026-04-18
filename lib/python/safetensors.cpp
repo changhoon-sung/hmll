@@ -1,6 +1,7 @@
 //
 // Created by mfuntowicz on 1/8/26.
 //
+#include <array>
 #include <filesystem>
 #include <type_traits>
 #include <unordered_map>
@@ -142,6 +143,19 @@ public:
         return loader_->afetch(iofile, start, end, dtype, shape, rank);
     }
 
+    [[nodiscard]] nb::ndarray<nb::c_contig> afetch_typed(
+        const int iofile,
+        const size_t start,
+        const size_t end,
+        const hmll_dtype_t dtype,
+        const std::vector<size_t>& shape
+    ) const
+    {
+        if (shape.empty())
+            throw std::runtime_error("shape must not be empty");
+        return loader_->afetch(iofile, start, end, dtype, shape.data(), static_cast<uint8_t>(shape.size()));
+    }
+
     [[nodiscard]] size_t fetch(const std::string& name, const uintptr_t dst, const size_t size) const
     {
         const auto registry = registry_.get();
@@ -212,6 +226,13 @@ void init_safetensors(nb::module_& m)
     .def("values", &SafetensorsAccessor::specs, nb::rv_policy::reference_internal)
     .def("items", &SafetensorsAccessor::named_specs, nb::rv_policy::reference_internal)
     .def("afetch", &SafetensorsAccessor::afetch)
+    .def("afetch_typed",
+        &SafetensorsAccessor::afetch_typed,
+        "iofile"_a,
+        "start"_a,
+        "end"_a,
+        "dtype"_a,
+        "shape"_a)
     .def("fetch", &SafetensorsAccessor::fetch)
     .def("fetchv", &SafetensorsAccessor::fetchv);
     m.def("safetensors", [](const std::filesystem::path& path, const hmll_device_t device, const bool is_sharded, const hmll_fetcher_kind_t backend) {
