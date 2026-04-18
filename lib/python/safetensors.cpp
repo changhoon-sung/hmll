@@ -208,7 +208,7 @@ void init_safetensors(nb::module_& m)
     nb::class_<SafetensorsAccessor>(m, "SafetensorsAccessor")
     .def("__len__", &SafetensorsAccessor::size)
     .def("__contains__", &SafetensorsAccessor::contains)
-    .def("__getitem__", &SafetensorsAccessor::operator[])
+    .def("__getitem__", &SafetensorsAccessor::operator[], nb::rv_policy::reference_internal)
     .def("__enter__", [](const nb::handle self) { return self; })
     .def("__exit__",
         [](SafetensorsAccessor&, nb::handle exc_type, nb::handle exc_value, nb::handle traceback) {
