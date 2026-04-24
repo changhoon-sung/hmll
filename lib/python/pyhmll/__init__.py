@@ -13,6 +13,7 @@ try:
         Backend,
         Device,
         SafetensorsAccessor,
+        WeightLoader,
         dtype,
         safetensors as _safetensors_impl,
     )
@@ -56,6 +57,7 @@ __all__ = [
     "Backend",
     "Device",
     "SafetensorsAccessor",
+    "WeightLoader",
     "dtype",
     "safetensors",
 ]

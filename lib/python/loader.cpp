@@ -21,7 +21,11 @@ hmll_device_t WeightLoader::device() const { return ctx_->fetcher->device; }
 hmll_fetcher_kind_t WeightLoader::kind() const { return ctx_->fetcher->kind; }
 
 
-std::unique_ptr<WeightLoader> WeightLoader::from_paths(const std::vector<std::string>& paths, const hmll_device_t device)
+std::unique_ptr<WeightLoader> WeightLoader::from_paths(
+    const std::vector<std::string>& paths,
+    const hmll_device_t device,
+    const hmll_fetcher_kind_t backend
+)
 {
     auto ctx = std::make_unique<hmll_t>();
     std::vector<hmll_source> srcs(paths.size());
@@ -35,7 +39,7 @@ std::unique_ptr<WeightLoader> WeightLoader::from_paths(const std::vector<std::st
         }
     }
 
-    return std::make_unique<WeightLoader>(srcs, device, std::move(ctx));
+    return std::make_unique<WeightLoader>(srcs, device, std::move(ctx), backend);
 }
 
 WeightLoader::WeightLoader(std::vector<hmll_source_t> srcs, const hmll_device_t device, const hmll_fetcher_kind_t backend)
@@ -150,7 +154,10 @@ size_t WeightLoader::fetchv(const int iofile, const std::vector<std::tuple<size_
 void init_loader(nb::module_& m)
 {
     nb::class_<WeightLoader>(m, "WeightLoader", R"pbdoc("Opaque type representing an allocated fetcher backend)pbdoc")
-    .def(nb::new_(&WeightLoader::from_paths), "paths"_a.sig("list[str]"), "device"_a.sig("Device"))
+    .def(nb::new_(&WeightLoader::from_paths),
+        "paths"_a.sig("list[str]"),
+        "device"_a.sig("Device"),
+        "backend"_a = HMLL_FETCHER_AUTO)
     .def_prop_ro("device", &WeightLoader::device)
     .def_prop_ro("kind", &WeightLoader::kind)
     .def("afetch", &WeightLoader::afetch)

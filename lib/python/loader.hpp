@@ -8,6 +8,7 @@
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
+#include <nanobind/stl/unique_ptr.h>
 #include <nanobind/stl/vector.h>
 
 #include "hmll/hmll.h"
@@ -20,7 +21,11 @@ class WeightLoader
     std::vector<hmll_source_t> srcs_;
 
 public:
-    static std::unique_ptr<WeightLoader> from_paths(const std::vector<std::string>& paths, hmll_device_t device);
+    static std::unique_ptr<WeightLoader> from_paths(
+        const std::vector<std::string>& paths,
+        hmll_device_t device,
+        hmll_fetcher_kind_t backend
+    );
 
     WeightLoader(WeightLoader&&) = default;
     WeightLoader& operator=(WeightLoader&&) = default;
