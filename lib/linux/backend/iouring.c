@@ -6,7 +6,10 @@
 #include "sys/mman.h"
 
 #define HMLL_IO_URING_FADVISE_TAG (1ULL << 63)
-#define HMLL_IO_URING_DEFAULT_QUEUE_PARAMS IORING_SETUP_SQPOLL
+#define HMLL_IO_URING_DEFAULT_QUEUE_PARAMS 0
+#ifndef HMLL_IO_URING_ENABLE_TASKRUN
+#define HMLL_IO_URING_ENABLE_TASKRUN 0
+#endif
 
 #if defined(__HMLL_CUDA_ENABLED__)
 #include "hmll/cuda.h"
@@ -38,16 +41,20 @@ static unsigned hmll_kernel_version(void)
 /**
  * Build io_uring setup flags based on the running kernel version.
  *
- *  SQPOLL          (always)  — kernel thread polls SQ, eliminates submit syscalls
- *  COOP_TASKRUN    (>= 6.1)  — no IPI for CQE delivery, process on next syscall
- *  TASKRUN_FLAG    (>= 6.1)  — companion: sets SQ flag when CQEs are pending
+ *  SQPOLL          (disabled by default) — kernel thread polls SQ, eliminates submit syscalls
+ *  COOP_TASKRUN    (available >= 6.1, disabled by default)
+ *  TASKRUN_FLAG    (available >= 6.1, disabled by default)
  */
 static inline int hmll_io_uring_get_setup_flags(void)
 {
     const unsigned kversion = hmll_kernel_version();
 
     int flags = HMLL_IO_URING_DEFAULT_QUEUE_PARAMS;
-    if (kversion >= hmll_kernel_version_internal(6, 1)) {
+    /*
+     * Keep optional taskrun flags opt-in. They are useful on some kernels, but
+     * the default path should avoid changing task-work scheduling semantics.
+     */
+    if (HMLL_IO_URING_ENABLE_TASKRUN && kversion >= hmll_kernel_version_internal(6, 1)) {
         flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_TASKRUN_FLAG;
     }
 
@@ -805,7 +812,7 @@ static struct hmll_error hmll_io_uring_queue_init(
         int res = io_uring_queue_init_params(HMLL_URING_QUEUE_DEPTH, &backend->ioring, &params);
         if (res < 0) {
             if (res == -EINVAL && (params.flags & IORING_SETUP_COOP_TASKRUN)) {
-                params.flags = IORING_SETUP_SQPOLL;
+                params.flags = HMLL_IO_URING_DEFAULT_QUEUE_PARAMS;
                 res = io_uring_queue_init_params(HMLL_URING_QUEUE_DEPTH, &backend->ioring, &params);
             }
             if (res < 0) {
