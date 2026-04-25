@@ -64,3 +64,5 @@ CMakeFiles/
 build/
 
 __pycache__/
+
+lib/python/pyhmll.egg-info/
