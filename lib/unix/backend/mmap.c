@@ -28,7 +28,8 @@ hmll_mmap_fetch_range_impl(struct hmll *ctx, const unsigned iofile, const struct
 
     const struct hmll_mmap *fetcher = ctx->fetcher->backend_impl_;
     const unsigned char *m_buf = fetcher->m_content[iofile];
-    madvise((void *)(m_buf + offset), dst->size, MADV_WILLNEED | MADV_SEQUENTIAL);
+    madvise((void *)(m_buf + offset), dst->size, MADV_SEQUENTIAL);
+    madvise((void *)(m_buf + offset), dst->size, MADV_WILLNEED);
 
 #ifdef __HMLL_CUDA_ENABLED__
     if (hmll_device_is_cuda(ctx->fetcher->device)) {
@@ -57,7 +58,8 @@ hmll_mmap_fetchv_range_impl(struct hmll *ctx, const unsigned iofile, const struc
         const size_t offset = offsets[i];
         const size_t n_bytes = dst->size;
 
-        madvise((void *)(m_buf + offset), n_bytes, MADV_WILLNEED | MADV_SEQUENTIAL);
+        madvise((void *)(m_buf + offset), n_bytes, MADV_SEQUENTIAL);
+        madvise((void *)(m_buf + offset), n_bytes, MADV_WILLNEED);
 
 #ifdef __HMLL_CUDA_ENABLED__
         if (hmll_device_is_cuda(ctx->fetcher->device)) {
@@ -151,7 +153,8 @@ struct hmll_error hmll_mmap_get_view(struct hmll *ctx, const int iofile, const s
     const size_t n_bytes = range.end - range.start;
 
     // Issue madvise for the range
-    madvise((void*)(m_buf + range.start), n_bytes, MADV_WILLNEED | MADV_SEQUENTIAL);
+    madvise((void*)(m_buf + range.start), n_bytes, MADV_SEQUENTIAL);
+    madvise((void*)(m_buf + range.start), n_bytes, MADV_WILLNEED);
 
     // Return a view directly into the mmap'd region
     out_view->ptr = (void *)(m_buf + range.start);  // todo(mfuntowicz) change that const ellision ...
