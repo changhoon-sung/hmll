@@ -95,7 +95,8 @@ unsigned char *hmll_mmap_file(const int fd, const size_t size)
     unsigned char *buf;
 
 #ifdef MAP_HUGETLB
-    buf = mmap(0, size, PROT_READ, MAP_PRIVATE | MAP_HUGETLB, fd, 0);
+    buf = mmap(0, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    // buf = mmap(0, size, PROT_READ, MAP_PRIVATE | MAP_HUGETLB, fd, 0);
     if (buf != MAP_FAILED) {
         return buf;
     }
@@ -106,9 +107,9 @@ unsigned char *hmll_mmap_file(const int fd, const size_t size)
         return NULL;
     }
 
-#ifdef MADV_HUGEPAGE
-    madvise(buf, size, MADV_HUGEPAGE);
-#endif
+// #ifdef MADV_HUGEPAGE
+//     madvise(buf, size, MADV_HUGEPAGE);
+// #endif
 
     return buf;
 }
